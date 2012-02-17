@@ -32,7 +32,10 @@ module Nodule
       @resources = {}
 
       opts.each do |name,value|
-        if value.kind_of? Nodule::Actor or value.kind_of? Nodule::Process
+        if value.respond_to? :topology
+          value.topology = self
+          @resources[name] = value
+        elsif value.kind_of? Nodule::Actor
           @resources[name] = value
         else
           raise "Only Nodule::Process and subclasses of Nodule::Actor are currently supported."

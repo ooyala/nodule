@@ -24,6 +24,10 @@ module Nodule
     # For the rest of the options, see Hastur::Test::Resource::Base.
     #
     def initialize(opts)
+      opts[:suffix] ||= '.zmq'
+
+      super(opts)
+
       @ctx = opts[:ctx] || ::ZMQ::Context.new
       @zmq_thread = nil
       @mutex = Mutex.new
@@ -36,7 +40,7 @@ module Nodule
         # Socket files are specified so they land in PWD, in the future we might want to specify a temp
         # dir, but that has a whole different bag of issues, so stick with simple until it's needed.
         when :gen, :generate
-          @uri = "ipc://#{@file}"
+          @uri = "ipc://#{@file.to_s}"
         when String
           @uri = val
         else
@@ -70,8 +74,6 @@ module Nodule
       if opts[:limit]
         @limit = opts[:limit]
       end
-
-      super(opts)
     end
 
     def run

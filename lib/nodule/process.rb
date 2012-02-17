@@ -8,59 +8,93 @@ module Nodule
   class Process
     attr_reader :argv, :pid, :started, :ended
     attr_reader :stdin, :stdout, :stderr
+    attr_accessor :topology
 
-    def _convert(arg, topology)
+    def initialize(*argv)
+      opts = argv[-1].kind_of?(Hash) ? argv.pop : {}
+      @mutex = Mutex.new
+      @threads = []
+      @status = nil
+      @started = nil
+      @ended = nil
+      @argv = argv
+      @stdin_proxy  = _arg_to_proxy(opts, :stdin)
+      @stdout_proxy = _arg_to_proxy(opts, :stdout)
+      @stderr_proxy = _arg_to_proxy(opts, :stderr)
+    end
+
+    # convert symbol arguments to the to_s result of a topology item if it exists,
+    # run procs, and flatten enumerbles, so
+    # :foobar will access the topology's entry for :foobar and call .to_s on it
+    # proc { "abc" } will become "abc"
+    # ['if=', :foobar] will resolve :foobar (this is recursive) and join all the results with no padding
+    # anything left unmatched will be coerced into a string with .to_s
+    def _apply_topology(arg)
       # only symbols are auto-translated to resource strings, String keys intentionally do not match
-      if arg.kind_of? Symbol and topology.has_key? arg
-        topology[arg].to_s
+      if arg.kind_of? Symbol and @topology.has_key? arg
+        @topology[arg].to_s
       # sub-lists are recursed then joined with no padding, so:
       # ["if=", :foo] would become "if=value"
       elsif arg.respond_to? :map
-        new = arg.map { |a| _convert(a, topology) }
+        new = arg.map { |a| _apply_topology(a) }
         new.join('')
       else
         arg.to_s
       end
     end
 
-    def initialize(*argv)
-      opts = argv[-1].respond_to?(:key) ? argv.pop : {}
-      topology = argv[0].kind_of?(Nodule::Topology) ? argv.shift : nil
-
-      @argv = argv.map { |arg| _convert(arg, topology) }
-
-      @mutex = Mutex.new
-      @threads = []
-      @status = nil
-      @started = nil
-      @ended = nil
-      @stdout_handler = _stdio_arg(opts, :stdout, topology)
-      @stderr_handler = _stdio_arg(opts, :stderr, topology)
+    # generate a proc that returns a Nodule::Actor or subclass at the time of need,
+    # so that topology is read lazily
+    def _arg_to_proxy(opts, key)
+      # throw procs into a plain Nodule::Actor automatically rather than requiring one to be created,
+      # although it probably makes the most sense to have them created in the topology
+      if key == :stdin and opts[key].kind_of? Proc
+        Nodule::Actor.new(:writer => opts[key])
+      elsif opts[key].kind_of? Proc
+        Nodule::Actor.new(:reader => opts[key])
+      elsif opts[key]
+        # lazy load a handler from topology, if one doesn't exist, do nothing
+        proc { @topology.has_key?(opts[key]) ? @topology[opts[key]] : nil }
+      else
+        nil
+      end
     end
 
-    def _stdio_arg(opts, key, topology)
-      out = nil
-      if opts[key].kind_of? Proc
-        out = Nodule::Actor.new(:reader => opts[key])
-      elsif opts[key]
-        if topology.has_key? opts[key]
-          out = topology[opts[key]]
-        else
-          raise ArgumentError.new "Invalid value for :#{key} '#{opts[key].inspect}'"
-        end
+    # run a thread per stdio channel (in out err) if a proxy proc is set up. These
+    # procs should always return a Nodule::Actor/subclass, or at least something that
+    # responds to run_readers / run_writers.
+    def _io_proxy(proxy, io, method)
+      if proxy.kind_of? Proc
+        actor = proxy.call
+      elsif proxy.kind_of? Nodule::Actor
+        actor = proxy
+      elsif proxy.nil?
+        return
+      else
+        raise ArgumentError.new "BUG: Invalid proxy class: #{proxy.class}."
+      end
+
+      @threads << Thread.new do
+        io.lines { |line| actor.send(method, line) } rescue STDERR.puts $!.inspect, $@
       end
     end
 
     def run
       raise ProcessAlreadyRunningError.new if @pid
 
+      argv = @argv.map { |arg| _apply_topology(arg) }
+
+      # Simply calling spawn with *argv isn't good enough, it really needs the command
+      # to be a completeley separate argument. This is likely due to a bug in spawn().
+      command = argv.shift
+
+      #STDERR.puts "Spawning: #{command} #{argv.join(' ')}"
+
       @stdin_r, @stdin    = IO.pipe
       @stdout,  @stdout_w = IO.pipe
       @stderr,  @stderr_w = IO.pipe
 
-      # Simply calling spawn with *argv isn't good enough, it really needs the command
-      # to be separate and I haven't dug all the way into why that is.
-      @pid = spawn(@argv[0], *@argv[1..-1],
+      @pid = spawn(command, *argv,
         :in  => @stdin_r,
         :out => @stdout_w,
         :err => @stderr_w,
@@ -68,25 +102,9 @@ module Nodule
 
       @started = Time.now
 
-      if @stdout_handler.respond_to? :call
-        @threads << Thread.new do
-          begin
-            @stdout.lines { |line| @stdout_handler.run_readers(line) }
-          rescue 
-            STDERR.puts $!.inspect, $@
-          end
-        end
-      end
-
-      if @stderr_handler.respond_to? :call
-        @threads << Thread.new do
-          begin
-            @stderr.lines { |line| @stderr_handler.run_readers(line) }
-          rescue 
-            STDERR.puts $!.inspect, $@
-          end
-        end
-      end
+      _io_proxy(@stdin_proxy,  @stdin,  :run_writers)
+      _io_proxy(@stdout_proxy, @stdout, :run_readers)
+      _io_proxy(@stderr_proxy, @stderr, :run_readers)
 
       @stdin_r.close
       @stdout_w.close
@@ -97,7 +115,7 @@ module Nodule
     # puts to the stdin of the child process
     #
     def puts(*args)
-      @stdin.puts *args
+      @stdin.puts(*args)
     end
 
     #
@@ -107,8 +125,8 @@ module Nodule
     #
     def slurp
       raise ProcessStillRunningError.new "Cannot slurp() until the process is done." unless done?
-      stdout = @stdout_handler.respond_to? :call ? nil : @stdout.lines
-      stderr = @stderr_handler.respond_to? :call ? nil : @stderr.lines
+      stdout = @stdout.lines unless @stdout_proxy
+      stderr = @stderr.lines unless @stderr_proxy
       return stdout, stderr
     end
 

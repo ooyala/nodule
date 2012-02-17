@@ -8,7 +8,7 @@ module Nodule
 
   class Actor
     attr_reader :readers, :writers, :input, :output, :running
-    @mutex = Mutex.new
+    @@mutex = Mutex.new
 
     def initialize(opts={})
       @readers ||= []
@@ -100,7 +100,7 @@ module Nodule
     end
 
     def synchronize(&block)
-      @mutex.synchronize &block
+      @@mutex.synchronize(&block)
     end
  
     def run_readers(item)
