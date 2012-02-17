@@ -1,5 +1,5 @@
 require 'nodule/actor'
-require 'nodule/tempfile_actor'
+require 'nodule/tempfile'
 require 'ffi-rzmq'
 require 'thread'
 
@@ -9,10 +9,7 @@ module Nodule
   # auto-generated IPC URI's, which can be handy for testing. More advanced usage uses the built-in
   # tap device to sniff messages while they're in-flight.
   #
-  class ZeroMQ
-    include Tempfile
-    include Tap
-
+  class ZeroMQ < Tempfile
     attr_reader :ctx, :uri, :method, :type, :limit, :error_count
 
     #
@@ -84,7 +81,6 @@ module Nodule
           # sockets have to be created inside the thread that uses them
           sockets = @sockprocs.map { |p| p.call }
 
-          _zmq_write(sockets)
           _zmq_read(sockets)
 
           sockets.each do |socket|
@@ -167,6 +163,8 @@ module Nodule
       count = 0
       loop do
         break if @mutex.locked?
+
+        _zmq_write(sockets)
 
         rc = @poller.poll(0.2)
         unless rc > 0
