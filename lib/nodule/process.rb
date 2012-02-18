@@ -19,9 +19,10 @@ module Nodule
       @ended = nil
       @pid = nil
       @argv = argv
-      @stdin_proxy  = _arg_to_proxy(opts, :stdin)
-      @stdout_proxy = _arg_to_proxy(opts, :stdout)
-      @stderr_proxy = _arg_to_proxy(opts, :stderr)
+      @verbose_proxy = _arg_to_proxy(opts, :verbose)
+      @stdin_proxy   = _arg_to_proxy(opts, :stdin)
+      @stdout_proxy  = _arg_to_proxy(opts, :stdout)
+      @stderr_proxy  = _arg_to_proxy(opts, :stderr)
     end
 
     # convert symbol arguments to the to_s result of a topology item if it exists,
@@ -61,23 +62,33 @@ module Nodule
       end
     end
 
+    def _resolve_proxy(proxy)
+      if proxy.kind_of? Proc
+        proxy.call
+      elsif proxy.kind_of? Nodule::Actor
+        proxy
+      elsif proxy.nil?
+        nil 
+      else
+        raise ArgumentError.new "BUG: Invalid proxy class: #{proxy.class}."
+      end
+    end
+
     # run a thread per stdio channel (in out err) if a proxy proc is set up. These
     # procs should always return a Nodule::Actor/subclass, or at least something that
     # responds to run_readers / run_writers.
     def _io_proxy(proxy, io, method)
-      if proxy.kind_of? Proc
-        actor = proxy.call
-      elsif proxy.kind_of? Nodule::Actor
-        actor = proxy
-      elsif proxy.nil?
-        return
-      else
-        raise ArgumentError.new "BUG: Invalid proxy class: #{proxy.class}."
-      end
-
+      return unless io
+      actor = _resolve_proxy(proxy)
+      return unless actor
       @threads << Thread.new do
         io.lines { |line| actor.send(method, line) } rescue STDERR.puts $!.inspect, $@
       end
+    end
+
+    def _verbose(data)
+      actor = _resolve_proxy(@verbose_proxy)
+      actor.send(:run_readers, data) if actor
     end
 
     def run
@@ -89,7 +100,7 @@ module Nodule
       # to be a completeley separate argument. This is likely due to a bug in spawn().
       command = argv.shift
 
-      #STDERR.puts "Spawning: #{command} #{argv.join(' ')}"
+      _verbose "Spawning: #{command} #{argv.join(' ')}"
 
       @stdin_r, @stdin    = IO.pipe
       @stdout,  @stdout_w = IO.pipe
@@ -150,6 +161,7 @@ module Nodule
       raise ArgumentError.new "negative signals are wrong and unsupported" unless sig > 0
       raise ProcessNotRunningError.new unless @pid
 
+      _verbose "Sending signal #{sig} to process #{@pid}."
       ::Process.kill(sig, @pid)
       # do not catch ESRCH - ESRCH means we did something totally buggy, likewise, an exception
       # should fire if the process is not running since there's all kinds of code already checking
@@ -165,6 +177,7 @@ module Nodule
       raise ProcessNotRunningError.new if @status
       
       pid, @status = ::Process.waitpid2(@pid, flag)
+      _verbose "Waitpid on process #{@pid} returned value #{pid} and exit status #{@status.exitstatus}."
 
       # this is as accurate as we can get, and it will generally be good enough for test work
       @ended = Time.now if pid == @pid
