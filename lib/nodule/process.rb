@@ -177,7 +177,7 @@ module Nodule
       raise ProcessNotRunningError.new if @status
       
       pid, @status = ::Process.waitpid2(@pid, flag)
-      _verbose "Waitpid on process #{@pid} returned value #{pid} and exit status #{@status.exitstatus}."
+      _verbose "Waitpid on process #{@pid} returned value #{pid} and exit status #{@status.inspect}."
 
       # this is as accurate as we can get, and it will generally be good enough for test work
       @ended = Time.now if pid == @pid
