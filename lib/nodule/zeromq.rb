@@ -109,7 +109,7 @@ module Nodule
     def wait(timeout=0)
       timer = _timeout(timeout)
       @zmq_thread.join
-      timer.join
+      timer.join if timer
       super()
     end
 
