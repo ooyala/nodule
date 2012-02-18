@@ -10,7 +10,7 @@ module Nodule
   # tap device to sniff messages while they're in-flight.
   #
   class ZeroMQ < Tempfile
-    attr_reader :ctx, :uri, :method, :type, :limit, :error_count
+    attr_reader :ctx, :uri, :method, :type, :socket, :limit, :error_count
 
     #
     # :uri - either :gen/:generate or a string, :gen means generate an IPC URI, a string
@@ -52,23 +52,18 @@ module Nodule
         raise ArgumentError.new "ZMQ socket types must be the same when enabling :bind and :connect"
       end
 
-      if opts[:connect]
-        @type = opts[:connect]
-        # defer socket creation/connect until the thread is started
-        @sockprocs << proc do
-          socket = @ctx.socket(@type)
-          socket.connect(@uri)
-          socket
-        end
-      end
+      # only set type and create a socket if :bind or :connect is specified
+      # otherwise, the caller probably just wants to generate a URI, or possibly
+      # use a pre-created socket? (not supported yet)
+      if @type = (opts[:connect] || opts[:bind])
+        @socket = @ctx.socket(@type)
 
-      if opts[:bind]
-        @type = opts[:bind]
-        # defer socket creation/bind until the thread is started
-        @sockprocs << proc do
-          socket = @ctx.socket(@type)
-          socket.bind(@uri)
-          socket
+        if opts[:connect]
+          @sockprocs << proc { @socket.connect(@uri) } # deferred
+        end
+  
+        if opts[:bind]
+          @sockprocs << proc { @socket.bind(@uri) } # deferred
         end
       end
 
@@ -79,17 +74,16 @@ module Nodule
 
     def run
       super
+      return unless @type and @sockprocs.count > 0
       @zmq_thread = Thread.new do
         begin
           # sockets have to be created inside the thread that uses them
-          sockets = @sockprocs.map { |p| p.call }
+          @sockprocs.each { |p| p.call }
 
-          _zmq_read(sockets)
+          _zmq_read()
 
-          sockets.each do |socket|
-            socket.setsockopt(ZMQ::LINGER, 0)
-            socket.close
-          end
+          @socket.setsockopt(ZMQ::LINGER, 0)
+          @socket.close
         rescue
           STDERR.puts $!.inspect, $@
         end
@@ -127,7 +121,7 @@ module Nodule
       # I'm not entirely sure why this is sometimes getting called twice, but this
       # seems to make everything work fine for now.
       @mutex.lock unless @mutex.locked?
-      @zmq_thread.join
+      @zmq_thread.join if @zmq_thread
       super
     end
 
@@ -146,27 +140,25 @@ module Nodule
     # many single-part: r.add_writer proc { ["a", "b", "c"] }
     # one multipart:    r.add_writer proc { [["a", "b"]] }
     # many multipart:   r.add_writer proc { [["a", "b"],["c","d"]] }
-    def _zmq_write(sockets)
+    def _zmq_write
       return if @writers.empty?
-      sockets.each do |socket|
-        run_writers do |output|
-          # returned a list
-          if output.respond_to? :each
-            output.each do |item|
-              # procs can send lists of lists to achieve multi-part output
-              if item.respond_to? :map
-                messages = item.map { |i| ZMQ::Message.new i }
-                socket.sendmsgs messages # ignore errors
-                messages.each { |m| m.close }
-              # otherwise, it's just a string or something with a sane to_s
-              else
-                socket.send_string item.to_s
-              end
+      run_writers do |output|
+        # returned a list
+        if output.respond_to? :each
+          output.each do |item|
+            # procs can send lists of lists to achieve multi-part output
+            if item.respond_to? :map
+              messages = item.map { |i| ZMQ::Message.new i }
+              @socket.sendmsgs messages # ignore errors
+              messages.each { |m| m.close }
+            # otherwise, it's just a string or something with a sane to_s
+            else
+              @socket.send_string item.to_s
             end
-          # returned a single item, send it as a string
-          else
-            socket.send_string output.to_s
           end
+        # returned a single item, send it as a string
+        else
+          @socket.send_string output.to_s
         end
       end
     end
@@ -177,12 +169,11 @@ module Nodule
     # If :limit was set, will exit after that many messages are seen/processed.
     # Otherwise, exits on the next iteration if the mutex is locked (which is done in stop).
     #
-    def _zmq_read(sockets)
+    def _zmq_read
       return if @readers.empty?
-      return if sockets.empty?
+      return unless @socket
 
-      # no reader blocks, that means :ignore, don't run the poll loop
-      sockets.each { |s| @poller.register_readable(s) }
+      @poller.register_readable @socket
 
       # read on the socket(s) and call the registered reader blocks for every message, always using
       # multipart and converting to ruby strings to avoid ZMQ::Message cleanup issues.
@@ -190,7 +181,7 @@ module Nodule
       loop do
         break if @mutex.locked?
 
-        _zmq_write(sockets)
+        _zmq_write()
 
         rc = @poller.poll(0.2)
         unless rc > 0
