@@ -1,4 +1,5 @@
 require 'nodule/version'
+require 'nodule/topology'
 
 module Nodule
   @sequence = 0
@@ -8,6 +9,7 @@ module Nodule
 
   class Actor
     attr_reader :readers, :writers, :input, :output, :running
+    attr_accessor :topology
     @@mutex = Mutex.new
 
     def initialize(opts={})
@@ -16,9 +18,20 @@ module Nodule
       @input   ||= []
       @output  ||= []
       @done    = false
+      @topology = nil
 
       @want_reader_output = opts[:capture_readers]
       @want_writer_output = opts[:capture_writers]
+
+      # only check for console color support once rather than for every line of output
+      # console_prefix will be filled in when run() is called so it can grab the key
+      # from the topology
+      @console_prefix = ''
+      if @console_prefix.respond_to? :color
+        @to_console = proc { |item| STDERR.puts "#{@console_prefix}#{item}".color(:cyan) }
+      else
+        @to_console = proc { |item| STDERR.puts "#{@console_prefix}#{item}" }
+      end
 
       add_reader(opts[:reader]) if opts[:reader]
       if opts[:readers].respond_to? :each
@@ -33,6 +46,16 @@ module Nodule
 
     def run
       @done = false
+
+      # this allows for standalone actors in an automatic one-node topology
+      unless @topology
+        @toplogy = Nodule::Topology.new(:auto => self)
+      end
+
+      # automatically determine a prefix for console output based on the key name known to the topology
+      if name = @topology.key(self)
+        @console_prefix = "[#{name}]: "
+      end
     end
 
     def stop
@@ -61,6 +84,8 @@ module Nodule
 
       if action.respond_to? :call
         @writers << action
+      elsif action.kind_of? Symbol
+        @writers << proc { |item| @topology[action].run_readers(item) }
       elsif action == :ignore or action.nil?
         # nothing to do here
       else
@@ -85,15 +110,12 @@ module Nodule
       elsif action == :drain and @readers.empty?
         @readers << proc { |item| item } # make sure there's at least one proc so recvmsg gets run
       elsif action == :stderr
-        @readers << proc do |item|
-          if item.to_s.respond_to? :color
-            STDERR.puts item.to_s.color(:cyan)
-          else
-            STDERR.puts item.to_s
-          end
-        end
+        @readers << @to_console
       elsif action == :ignore or action.nil?
         # nothing to do here
+      # if it's an unrecognized symbol, defer resolution against the containing topology
+      elsif action.kind_of? Symbol
+        @readers << proc { |item| @topology[action].run_writers(item) }
       else
         raise ArgumentError.new "Invalid add_reader class: #{action.class}"
       end

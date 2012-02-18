@@ -25,7 +25,8 @@
 # that run in subprocesses will be referenceable through this wrapper.
 #
 module Nodule
-  class TopologyProcessStillRunning < StandardError; end
+  class TopologyProcessStillRunningError < StandardError; end
+  class TopologyIntegrationRequiredError < StandardError; end
 
   class Topology
     def initialize(opts={})
@@ -35,10 +36,8 @@ module Nodule
         if value.respond_to? :topology
           value.topology = self
           @resources[name] = value
-        elsif value.kind_of? Nodule::Actor
-          @resources[name] = value
         else
-          raise "Only Nodule::Process and subclasses of Nodule::Actor are currently supported."
+          raise TopologyIntegrationRequiredError.new "#{name} => #{value} does not respond to :topology"
         end
       end
 
@@ -55,6 +54,14 @@ module Nodule
 
     def has_key?(key)
       @resources.has_key?(key)
+    end
+
+    def keys
+      @resources.keys
+    end
+
+    def key(object)
+      @resources.key(object)
     end
 
     def start_all
@@ -135,7 +142,7 @@ module Nodule
     # Reset all processes for restart.
     #
     def reset_all
-      raise TopologyProcessStillRunning.new unless @all_stopped
+      raise TopologyProcessStillRunningError.new unless @all_stopped
       @resources.each { |_, object| object.reset }
     end
 
