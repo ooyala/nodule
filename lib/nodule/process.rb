@@ -4,6 +4,7 @@ module Nodule
   class ProcessNotRunningError < StandardError; end
   class ProcessAlreadyRunningError < StandardError; end
   class ProcessStillRunningError < StandardError; end
+  class TopologyUnknownSymbolError < StandardError; end
 
   class Process
     attr_reader :argv, :pid, :started, :ended
@@ -33,8 +34,12 @@ module Nodule
     # anything left unmatched will be coerced into a string with .to_s
     def _apply_topology(arg)
       # only symbols are auto-translated to resource strings, String keys intentionally do not match
-      if arg.kind_of? Symbol and @topology.has_key? arg
-        @topology[arg].to_s
+      if arg.kind_of? Symbol
+        if @topology.has_key? arg
+          @topology[arg].to_s
+        else
+          raise TopologyUnknownSymbolError.new "Unresolvable topology symbol, :#{arg}"
+        end
       # sub-lists are recursed then joined with no padding, so:
       # ["if=", :foo] would become "if=value"
       elsif arg.respond_to? :map
