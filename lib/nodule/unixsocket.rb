@@ -31,6 +31,7 @@ module Nodule
 
     def stop
       @socket.close
+      super
     end
   end
 
