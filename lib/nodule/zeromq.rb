@@ -35,6 +35,7 @@ module Nodule
       @sockprocs = []
       @limit = nil
       @poller = ::ZMQ::Poller.new
+      @timeout_started = false
 
       case opts[:uri]
         # Socket files are specified so they land in PWD, in the future we might want to specify a temp
@@ -95,12 +96,27 @@ module Nodule
       end
     end
 
+    def _timeout(timeout=0)
+      return if @timeout_started or timeout == 0
+      @timeout_started = true
+
+      Thread.new do
+        sleep timeout
+        if @zmq_thread.alive?
+          @zmq_thread.terminate
+          @zmq_thread.join
+        end
+      end
+    end
+
     #
     # Wait for the ZMQ thread to exit on its own, mostly useful with :limit => Fixnum.
     #
-    def wait
+    def wait(timeout=0)
+      timer = _timeout(timeout)
       @zmq_thread.join
-      super
+      timer.join
+      super()
     end
 
     #
