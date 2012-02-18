@@ -96,6 +96,14 @@ module Nodule
     end
 
     #
+    # Wait for the ZMQ thread to exit on its own, mostly useful with :limit => Fixnum.
+    #
+    def wait
+      @zmq_thread.join
+      super
+    end
+
+    #
     # Set a mutex that causes the ZMQ thread to exit, join that thread, then call
     # any cleanup in Base.
     #
