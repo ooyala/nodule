@@ -11,15 +11,13 @@ require 'multi_json'
 class NoduleSimpleTest < Test::Unit::TestCase
   def setup
     @topo = Nodule::Topology.new(
-      :greenio      => Nodule::Console.new(:fg => :green),
-      :redio        => Nodule::Console.new(:fg => :red),
-      :file1        => Nodule::Tempfile.new(".html"),
-    )
-
-    # commands have to be in array form or process management is indeterminate
-    @topo[:wget] = Nodule::Process.new(@topo,
-      '/usr/bin/wget', '-O', :file1, 'http://www.ooyala.com',
-      {:stdout => :greenio, :stderr => :redio}
+      :greenio => Nodule::Console.new(:fg => :green),
+      :redio   => Nodule::Console.new(:fg => :red),
+      :file1   => Nodule::Tempfile.new(:suffix => ".html"),
+      :wget    => Nodule::Process.new(
+        '/usr/bin/wget', '-O', :file1, 'http://www.ooyala.com',
+        :stdout => :greenio
+      )
     )
 
     @topo.start_all
@@ -30,6 +28,7 @@ class NoduleSimpleTest < Test::Unit::TestCase
   end
 
   def test_heartbeat
+    @topo[:wget].wait
     filename = @topo[:file1].to_s
     assert File.exists? filename
   end

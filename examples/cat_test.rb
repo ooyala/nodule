@@ -6,30 +6,25 @@ require 'nodule/process'
 require 'nodule/topology'
 require 'nodule/tempfile'
 require 'nodule/console'
-require 'rainbow'
-require 'multi_json'
 
 class NoduleDDCatTest < Test::Unit::TestCase
   BYTES=65536
 
   def setup
     @topo = Nodule::Topology.new(
-      :greenio      => Nodule::Console.new(:fg => :green),
-      :redio        => Nodule::Console.new(:fg => :red),
-      :file1        => Nodule::Tempfile.new(".rand"),
-      :file2        => Nodule::Tempfile.new(".copy"),
+      :redio   => Nodule::Console.new(:fg => :red),
+      :greenio => Nodule::Console.new(:fg => :green),
+      :file1   => Nodule::Tempfile.new(:suffix => ".rand"),
+      :file2   => Nodule::Tempfile.new(:suffix => ".copy"),
+      :dd      => Nodule::Process.new(
+        '/bin/dd', 'if=/dev/urandom', ['of=', :file1], "bs=#{BYTES}", 'count=1',
+        :stderr => :redio, :verbose => :greenio
+      ),
+      :ls      => Nodule::Process.new('ls', '-l', :stdout => :greenio),
+      :copy    => Nodule::Process.new('/bin/cp', :file1, :file2, :stderr => :redio),
     )
 
-    @topo[:dd] = Nodule::Process.new(@topo,
-      '/bin/dd', 'if=/dev/urandom', ['of=', :file1], "bs=#{BYTES}", 'count=1',
-      {:stdout => :greenio, :stderr => :redio}
-    )
-
-    @topo[:cat] = Nodule::Process.new(@topo,
-      '/bin/cp', :file1, :file2,
-      {:stdout => :greenio, :stderr => :redio}
-    )
-
+    # start up and run in order
     @topo.run_serially
   end
 
