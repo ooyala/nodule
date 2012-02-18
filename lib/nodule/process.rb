@@ -17,6 +17,7 @@ module Nodule
       @status = nil
       @started = nil
       @ended = nil
+      @pid = nil
       @argv = argv
       @stdin_proxy  = _arg_to_proxy(opts, :stdin)
       @stdout_proxy = _arg_to_proxy(opts, :stdout)
