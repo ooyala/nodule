@@ -31,6 +31,7 @@ module Nodule
       @ctx = opts[:ctx] || ::ZMQ::Context.new
       @zmq_thread = nil
       @mutex = Mutex.new
+      @use_thread = opts[:thread].nil? ? true : false
       @error_count = 0
       @sockprocs = []
       @limit = nil
@@ -72,21 +73,39 @@ module Nodule
       end
     end
 
-    def run
-      super
-      return unless @type and @sockprocs.count > 0
+    def _background(&block)
+      raise ArgumentError.new "A block is required!" unless block_given?
+
+      # wrap the block in a block so errors don't simply vanish until join time
       @zmq_thread = Thread.new do
         begin
-          # sockets have to be created inside the thread that uses them
-          @sockprocs.each { |p| p.call }
-
-          _zmq_read()
-
-          @socket.setsockopt(ZMQ::LINGER, 0)
-          @socket.close
+          block.call
         rescue
           STDERR.puts $!.inspect, $@
         end
+      end
+    end
+
+    def _close_socket
+      @socket.setsockopt(ZMQ::LINGER, 0)
+      @socket.close
+    end
+
+    def run
+      super
+      return unless @type and @sockprocs.count > 0
+
+      # The background thread can only be explicitly disabled with :thread => false.
+      if @use_thread
+        _background do
+          # sockets have to be created inside the thread that uses them
+          @sockprocs.each { |p| p.call }
+          _zmq_read()
+          # if this is running in its own thread, clean up after read returns, otherwise let stop() do it
+          _close_socket
+        end
+      else
+        @sockprocs.each { |p| p.call }
       end
     end
 
@@ -118,6 +137,8 @@ module Nodule
     # any cleanup in Base.
     #
     def stop
+      _close_socket unless @use_thread
+
       # I'm not entirely sure why this is sometimes getting called twice, but this
       # seems to make everything work fine for now.
       @mutex.lock unless @mutex.locked?
