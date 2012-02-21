@@ -38,7 +38,7 @@ module Nodule
       # Sockets cannot be used across thread boundaries, so use a ZMQ::PAIR socket both to synchronize thread
       # startup and pass writes form main -> thread. The .socket method will return the PAIR socket.
       # This would be an inproc:// device, but they seem to lock up in this usage pattern, so go with IPC.
-      @m2t_pair = Nodule::Tempfile.new # cleaned up in stop()
+      @m2t_pair = Nodule::Tempfile.new(:suffix => "-pair.zmq") # cleaned up in stop()
       @m2t_pair_uri = "ipc://#{@m2t_pair.to_s}"
 
       case opts[:uri]
