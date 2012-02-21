@@ -10,7 +10,7 @@ module Nodule
   # tap device to sniff messages while they're in-flight.
   #
   class ZeroMQ < Tempfile
-    attr_reader :ctx, :uri, :method, :type, :socket, :limit, :error_count
+    attr_reader :ctx, :uri, :method, :type, :limit, :error_count
 
     #
     # :uri - either :gen/:generate or a string, :gen means generate an IPC URI, a string
@@ -28,15 +28,18 @@ module Nodule
 
       super(opts)
 
-      @ctx = opts[:ctx] || ::ZMQ::Context.new
+      @ctx = ::ZMQ::Context.new
       @zmq_thread = nil
-      @mutex = Mutex.new
-      @use_thread = opts[:thread].nil? ? true : false
       @error_count = 0
       @sockprocs = []
       @limit = nil
-      @poller = ::ZMQ::Poller.new
       @timeout_started = false
+
+      # Sockets cannot be used across thread boundaries, so use a ZMQ::PAIR socket both to synchronize thread
+      # startup and pass writes form main -> thread. The .socket method will return the PAIR socket.
+      # This would be an inproc:// device, but they seem to lock up in this usage pattern, so go with IPC.
+      @m2t_pair = Nodule::Tempfile.new # cleaned up in stop()
+      @m2t_pair_uri = "ipc://#{@m2t_pair.to_s}"
 
       case opts[:uri]
         # Socket files are specified so they land in PWD, in the future we might want to specify a temp
@@ -66,6 +69,13 @@ module Nodule
         if opts[:bind]
           @sockprocs << proc { @socket.bind(@uri) } # deferred
         end
+
+        # deferred: create the IPC PAIR socket in the child thread
+        @sockprocs << proc do
+          @m2t_pair_rcv = @ctx.socket(ZMQ::PAIR)
+          @m2t_pair_rcv.bind(@m2t_pair_uri)
+        end
+
       end
 
       if opts[:limit]
@@ -73,40 +83,33 @@ module Nodule
       end
     end
 
-    def _background(&block)
-      raise ArgumentError.new "A block is required!" unless block_given?
+    def run
+      super
+      return if @sockprocs.empty?
 
       # wrap the block in a block so errors don't simply vanish until join time
       @zmq_thread = Thread.new do
         begin
-          block.call
+          # sockets have to be created inside the thread that uses them
+          @sockprocs.each { |p| p.call }
+
+          _zmq_read()
+          debug "child thread #{Thread.current} shutting down"
+
+          @m2t_pair_rcv.close
+
+          if @socket
+            @socket.setsockopt(ZMQ::LINGER, 0)
+            @socket.close
+          end
         rescue
           STDERR.puts $!.inspect, $@
         end
       end
-    end
 
-    def _close_socket
-      @socket.setsockopt(ZMQ::LINGER, 0)
-      @socket.close
-    end
-
-    def run
-      super
-      return unless @type and @sockprocs.count > 0
-
-      # The background thread can only be explicitly disabled with :thread => false.
-      if @use_thread
-        _background do
-          # sockets have to be created inside the thread that uses them
-          @sockprocs.each { |p| p.call }
-          _zmq_read()
-          # if this is running in its own thread, clean up after read returns, otherwise let stop() do it
-          _close_socket
-        end
-      else
-        @sockprocs.each { |p| p.call }
-      end
+      # now create the main thread side immediately
+      @m2t_pair_send = @ctx.socket(ZMQ::PAIR)
+      @m2t_pair_send.connect(@m2t_pair_uri)
     end
 
     def _timeout(timeout=0)
@@ -120,6 +123,10 @@ module Nodule
           @zmq_thread.join
         end
       end
+    end
+
+    def socket
+      @m2t_pair_send
     end
 
     #
@@ -137,12 +144,15 @@ module Nodule
     # any cleanup in Base.
     #
     def stop
-      _close_socket unless @use_thread
+      unless @sockprocs.empty?
+        @m2t_pair_send.send_strings(["exit"])
+        @m2t_pair_send.setsockopt(ZMQ::LINGER, 0)
+        @m2t_pair_send.close
+        @zmq_thread.join if @zmq_thread
+      end
 
-      # I'm not entirely sure why this is sometimes getting called twice, but this
-      # seems to make everything work fine for now.
-      @mutex.lock unless @mutex.locked?
-      @zmq_thread.join if @zmq_thread
+      @m2t_pair.stop
+      @ctx.terminate
       super
     end
 
@@ -191,17 +201,17 @@ module Nodule
     # Otherwise, exits on the next iteration if the mutex is locked (which is done in stop).
     #
     def _zmq_read
-      return if @readers.empty?
       return unless @socket
+      @poller = ::ZMQ::Poller.new
 
       @poller.register_readable @socket
+      @poller.register_readable @m2t_pair_rcv
 
       # read on the socket(s) and call the registered reader blocks for every message, always using
       # multipart and converting to ruby strings to avoid ZMQ::Message cleanup issues.
       count = 0
-      loop do
-        break if @mutex.locked?
-
+      @running = true
+      while @running
         _zmq_write()
 
         rc = @poller.poll(0.2)
@@ -215,8 +225,21 @@ module Nodule
           if rc > -1
             count += 1
 
-            run_readers(messages)
+            if sock == @socket
+              run_readers(messages)
+            # the main thread can send messages through to be resent or "exit" to shut down this thread
+            elsif sock == @m2t_pair_rcv
+              if messages[0] == "exit"
+                @running = false
+                return
+              else
+                @socket.send_strings messages
+              end
+            else
+              raise "BUG: couldn't match socket to a known socket"
+            end
 
+            # stop reading after a set number of messages, regardless of whether there are any more waiting
             return if @limit and count == @limit
           else
             @error_count += 1
