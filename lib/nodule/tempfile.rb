@@ -12,7 +12,13 @@ module Nodule
     end
 
     def stop
-      File.unlink(@file) if File.exists?(@file)
+      # Ruby caches stat_t somewhere and causes race conditions, but we don't really
+      # care here as long as the file is gone.
+      begin
+        File.unlink(@file)
+      rescue Errno::ENOENT
+      end
+
       super
     end
 
