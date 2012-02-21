@@ -11,14 +11,18 @@ module Nodule
     attr_reader :readers, :writers, :input, :output, :running
     attr_accessor :topology
     @@mutex = Mutex.new
+    @@debug = Mutex.new
 
     def initialize(opts={})
       @readers ||= []
       @writers ||= []
       @input   ||= []
       @output  ||= []
+      @debug   = opts[:debug]
       @done    = false
       @topology = nil
+      @rmutex = Mutex.new
+      @wmutex = Mutex.new
 
       @want_reader_output = opts[:capture_readers]
       @want_writer_output = opts[:capture_writers]
@@ -41,6 +45,24 @@ module Nodule
       add_writer(opts[:writer]) if opts[:writer]
       if opts[:writers].respond_to? :each
         opts[:writers].each { |a| add_action(@writers, a) }
+      end
+    end
+
+    def debug(*args)
+      return unless @debug
+
+      if args.respond_to?(:one?) and args.one?
+         message = "#{@console_prefix}#{args[0]}".color(:red)
+      else
+         message = "#{@console_prefix}#{args.inspect}".color(:red)
+      end
+
+      @@debug.synchronize do
+        if message.respond_to? :color
+          STDERR.puts message.color(:red)
+        else
+          STDERR.puts message
+        end
       end
     end
 
@@ -85,7 +107,7 @@ module Nodule
       if action.respond_to? :call
         @writers << action
       elsif action.kind_of? Symbol
-        @writers << proc { |item| @topology[action].run_readers(item) }
+        @writers << proc { |item| @topology[action].run_writers(item) }
       elsif action == :ignore or action.nil?
         # nothing to do here
       else
@@ -115,7 +137,7 @@ module Nodule
         # nothing to do here
       # if it's an unrecognized symbol, defer resolution against the containing topology
       elsif action.kind_of? Symbol
-        @readers << proc { |item| @topology[action].run_writers(item) }
+        @readers << proc { |item| @topology[action].run_readers(item) }
       else
         raise ArgumentError.new "Invalid add_reader class: #{action.class}"
       end
@@ -126,7 +148,7 @@ module Nodule
     end
  
     def run_readers(item)
-      synchronize do
+      @rmutex.synchronize do
         @readers.each do |reader|
           out = reader.call(item)
           @reader_out.push out if @want_reader_output
@@ -135,7 +157,7 @@ module Nodule
     end
 
     def run_writers
-      synchronize do
+      @wmutex.synchronize do
         @writers.each do |writer|
           out = writer.call(item)
           @writer_out.push out if @want_writer_output
