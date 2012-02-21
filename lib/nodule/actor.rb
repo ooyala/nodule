@@ -49,7 +49,7 @@ module Nodule
     end
 
     def debug(*args)
-      return unless @debug
+      return unless @debug or ENV['DEBUG']
 
       if args.respond_to?(:one?) and args.one?
          message = "#{@console_prefix}#{args[0]}".color(:red)
