@@ -5,11 +5,11 @@ require "nodule/version"
 Gem::Specification.new do |s|
   s.name        = "nodule"
   s.version     = Nodule::VERSION
-  s.authors     = ["Noah Gibbs"]
-  s.email       = ["noah@ooyala.com"]
+  s.authors     = ["Al Tobey", "Noah Gibbs", "Viet Nguyen"]
+  s.email       = ["al@ooyala.com", "noah@ooyala.com", "viet@ooyala.com"]
   s.homepage    = ""
-  s.summary     = %q{TODO: Write a gem summary}
-  s.description = %q{TODO: Write a gem description}
+  s.summary     = %q{Nodule starts, stops, tests and redirects groups of processes}
+  s.description = %q{Nodule lets you declare Topologies of processes, which can be started or stopped together.  You can also redirect sockets, set up interprocess communication, make assertions on captured packets between processes and generally monitor or change the interaction of any of your processes.  Nodule is great for integration testing or for bringing up complicated interdependent sets of processes on a single host.}
 
   s.rubyforge_project = "nodule"
 
