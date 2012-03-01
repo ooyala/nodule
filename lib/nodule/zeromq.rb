@@ -119,6 +119,8 @@ module Nodule
     #
     # Wait for the ZMQ thread to exit on its own, mostly useful with :limit => Fixnum.
     #
+    # This does not signal the child thread.
+    #
     def wait(timeout=60)
       countdown = timeout.to_f
 
@@ -134,6 +136,10 @@ module Nodule
       super()
     end
 
+    #
+    # If the thread is still alive, force an exception in the thread and
+    # continue to do the things stop does.
+    #
     def stop!
       if @zmq_thread.alive?
         STDERR.puts "force stop! called, issuing Thread.raise"
@@ -150,7 +156,7 @@ module Nodule
     end
 
     #
-    # send a message to the child thread telling it to exit, does NOT join, call wait
+    # send a message to the child thread telling it to exit and join the thread
     #
     def stop
       return if @stopped
