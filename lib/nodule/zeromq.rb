@@ -34,12 +34,19 @@ module Nodule
       @sockprocs = []
       @limit = nil
       @timeout_started = false
+      @stopped = false
 
       # Sockets cannot be used across thread boundaries, so use a ZMQ::PAIR socket both to synchronize thread
       # startup and pass writes form main -> thread. The .socket method will return the PAIR socket.
-      # This would be an inproc:// device, but they seem to lock up in this usage pattern, so go with IPC.
-      @m2t_pair = Nodule::Tempfile.new(:suffix => "-pair.zmq") # cleaned up in stop()
-      @m2t_pair_uri = "ipc://#{@m2t_pair.to_s}"
+      @pipe_uri = "inproc://pair-#{Nodule.next_seq}"
+      @pipe = @ctx.socket(ZMQ::PAIR)
+      @child = @ctx.socket(ZMQ::PAIR)
+      @pipe.setsockopt(ZMQ::HWM, 1)
+      @child.setsockopt(ZMQ::HWM, 1)
+      @pipe.setsockopt(ZMQ::LINGER, 1.0)
+      @child.setsockopt(ZMQ::LINGER, 1.0)
+      @pipe.bind(@pipe_uri)
+      @child.connect(@pipe_uri)
 
       case opts[:uri]
         # Socket files are specified so they land in PWD, in the future we might want to specify a temp
@@ -61,6 +68,8 @@ module Nodule
       # use a pre-created socket? (not supported yet)
       if @type = (opts[:connect] || opts[:bind])
         @socket = @ctx.socket(@type)
+        @socket.setsockopt(ZMQ::HWM, 1)
+        @socket.setsockopt(ZMQ::LINGER, 1.0)
 
         if opts[:connect]
           @sockprocs << proc { @socket.connect(@uri) } # deferred
@@ -69,13 +78,6 @@ module Nodule
         if opts[:bind]
           @sockprocs << proc { @socket.bind(@uri) } # deferred
         end
-
-        # deferred: create the IPC PAIR socket in the child thread
-        @sockprocs << proc do
-          @m2t_pair_rcv = @ctx.socket(ZMQ::PAIR)
-          @m2t_pair_rcv.bind(@m2t_pair_uri)
-        end
-
       end
 
       if opts[:limit]
@@ -83,77 +85,86 @@ module Nodule
       end
     end
 
-    def run
+    def run(name=nil)
       super
       return if @sockprocs.empty?
 
       # wrap the block in a block so errors don't simply vanish until join time
       @zmq_thread = Thread.new do
-        begin
-          # sockets have to be created inside the thread that uses them
-          @sockprocs.each { |p| p.call }
+        Thread.current.abort_on_exception
 
-          _zmq_read()
-          debug "child thread #{Thread.current} shutting down"
+        # sockets have to be created inside the thread that uses them
+        @sockprocs.each { |p| p.call }
 
-          @m2t_pair_rcv.close
+        _zmq_read()
+        debug "child thread #{Thread.current} shutting down"
 
-          if @socket
-            @socket.setsockopt(ZMQ::LINGER, 0)
-            @socket.close
-          end
-        rescue
-          STDERR.puts $!.inspect, $@
-        end
+        @child.close
+        @socket.close if @socket
       end
 
-      # now create the main thread side immediately
-      @m2t_pair_send = @ctx.socket(ZMQ::PAIR)
-      @m2t_pair_send.connect(@m2t_pair_uri)
-    end
+      Thread.pass
 
-    def _timeout(timeout=0)
-      return if @timeout_started or timeout == 0
-      @timeout_started = true
-
-      Thread.new do
-        sleep timeout
-        if @zmq_thread.alive?
-          @zmq_thread.terminate
-          @zmq_thread.join
-        end
-      end
+      @stopped = @zmq_thread.alive? ? false : true
     end
 
     def socket
-      @m2t_pair_send
+      @pipe
+    end
+
+    def done?
+      @stopped
     end
 
     #
     # Wait for the ZMQ thread to exit on its own, mostly useful with :limit => Fixnum.
     #
-    def wait(timeout=0)
-      timer = _timeout(timeout)
-      @zmq_thread.join
-      timer.join if timer
+    def wait(timeout=60)
+      countdown = timeout.to_f
+
+      while countdown > 0
+        if @zmq_thread and @zmq_thread.alive?
+          sleep 0.1
+          countdown = countdown - 0.1
+        else
+          break
+        end
+      end
+
       super()
     end
 
-    #
-    # Set a mutex that causes the ZMQ thread to exit, join that thread, then call
-    # any cleanup in Base.
-    #
-    def stop
-      unless @sockprocs.empty?
-        @m2t_pair_send.send_strings(["exit"])
-        @m2t_pair_send.setsockopt(ZMQ::LINGER, 0)
-        @m2t_pair_send.close
-        @zmq_thread.join if @zmq_thread
+    def stop!
+      if @zmq_thread.alive?
+        STDERR.puts "force stop! called, issuing Thread.raise"
+        @zmq_thread.raise "force stop! called"
       end
 
-      @m2t_pair.stop
-      @ctx.terminate
+      stop
+      wait 1
+
+      @zmq_thread.join if @zmq_thread
+      @pipe.close if @pipe
+
+      @stopped = true
+    end
+
+    #
+    # send a message to the child thread telling it to exit, does NOT join, call wait
+    #
+    def stop
+      return if @stopped
+
+      @pipe.send_strings(["exit"], 1)
+
+      Thread.pass
+
       super
+
+      @zmq_thread.join if @zmq_thread
+      @pipe.close if @pipe
+
+      @stopped = true
     end
 
     #
@@ -205,7 +216,7 @@ module Nodule
       @poller = ::ZMQ::Poller.new
 
       @poller.register_readable @socket
-      @poller.register_readable @m2t_pair_rcv
+      @poller.register_readable @child
 
       # read on the socket(s) and call the registered reader blocks for every message, always using
       # multipart and converting to ruby strings to avoid ZMQ::Message cleanup issues.
@@ -228,10 +239,10 @@ module Nodule
             if sock == @socket
               run_readers(messages)
             # the main thread can send messages through to be resent or "exit" to shut down this thread
-            elsif sock == @m2t_pair_rcv
+            elsif sock == @child
               if messages[0] == "exit"
+                debug "Got exit message. Exiting."
                 @running = false
-                return
               else
                 @socket.send_strings messages
               end
@@ -240,15 +251,16 @@ module Nodule
             end
 
             # stop reading after a set number of messages, regardless of whether there are any more waiting
-            return if @limit and count == @limit
+            break if @limit and count >= @limit
+            break unless @running
           else
             @error_count += 1
             break
           end
+        end # @poller.readables.each
 
-          break if @limit and count == @limit
-        end
-      end
+        break if @limit and count >= @limit
+      end # while @running
     end
   end
 end
