@@ -111,9 +111,11 @@ module Nodule
     def stop name
       object = @resources[name]
       object.stop
-      object.stop! unless object.done?
+      object.wait 1 unless object.done?
+      object.stop!  unless object.done?
+      object.wait 1 unless object.done?
       unless object.done?
-        raise "Could not stop resource: #{object.inspect}"
+        raise "Could not stop resource: #{object.class} #{object.inspect}"
       end
     end
 
@@ -128,13 +130,16 @@ module Nodule
       @resources.each { |_,object| object.stop }
     end
 
+    def wait(name, timeout=60)
+      @resources[name].wait timeout
+    end
+
     #
     # Wait for all resources to exit normally.
     #
     def wait_all
       @resources.each do |name,object|
         object.wait if object.respond_to? :wait
-        object.stop if object.respond_to? :stop
       end
     end
 
