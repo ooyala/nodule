@@ -87,7 +87,8 @@ module Nodule
       actor = _resolve_proxy(proxy)
       return unless actor
       @threads << Thread.new do
-        io.lines { |line| actor.send(method, line) } rescue STDERR.puts $!.inspect, $@
+        Thread.current.abort_on_exception
+        io.lines { |line| actor.send(method, line) }
       end
     end
 

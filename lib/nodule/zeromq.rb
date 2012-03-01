@@ -85,7 +85,7 @@ module Nodule
       end
     end
 
-    def run(name=nil)
+    def run
       super
       return if @sockprocs.empty?
 

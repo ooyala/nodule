@@ -15,17 +15,15 @@ module Nodule
     #
     # Run the tap "device" in a thread.
     #
-    def run 
+    def run
       @running = true
       return unless forward?
 
       @thread = Thread.new do
-        begin
-          tap
-        rescue
-          STDERR.puts $!.inspect, $@
-        end
+        Thread.current.abort_on_exception
+        tap
       end
+
       super
     end
 

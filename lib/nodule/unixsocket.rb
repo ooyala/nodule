@@ -39,15 +39,13 @@ module Nodule
     def run
       super
       @thread = Thread.new do
-        begin
-          server = Socket.new(:UNIX, @family, 0)
-          address = Addrinfo.unix(@file)
-          server.bind(address)
+        Thread.current.abort_on_exception
 
-          message, = server.recvmsg(65536, 0) if sock
-        rescue
-          STDERR.puts $!.inspect, $@
-        end
+        server = Socket.new(:UNIX, @family, 0)
+        address = Addrinfo.unix(@file)
+        server.bind(address)
+
+        message, = server.recvmsg(65536, 0) if sock
       end
     end
 
