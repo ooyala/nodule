@@ -82,4 +82,6 @@ Dependencies
 ------------
 
 * Ruby 1.9 (tested on 1.9.2p290)
+* rainbow
+* ffi-rzmq (for Nodule::ZeroMQ, optional)
 
