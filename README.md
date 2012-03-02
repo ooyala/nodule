@@ -85,3 +85,8 @@ Dependencies
 * rainbow
 * ffi-rzmq (for Nodule::ZeroMQ, optional)
 
+License
+-------
+
+Nodule is released under [the MIT license](http://www.opensource.org/licenses/mit-license.php).
+
