@@ -1,3 +1,10 @@
+Warning
+-------
+
+Nodule is really new software (all of 2 weeks old). It was extracted from a larger project
+where it is used for some really large integration tests. We'll remove this message once
+Nodule has a reasonable set of tests of its own.
+
 Overview
 --------
 
