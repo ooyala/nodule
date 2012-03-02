@@ -92,7 +92,7 @@ module Nodule
       @done
     end
 
-    def wait
+    def wait(timeout=nil)
     end
 
     #

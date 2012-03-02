@@ -192,10 +192,20 @@ module Nodule
     end
 
     #
-    # Call blocking waitpid and block until the process exits.
+    # Call waitpid and block until the process exits or timeout is reached.
     #
-    def wait
-      waitpid(0)
+    def wait(timeout=nil)
+      if timeout and timeout > 0
+        (timeout / 0.1).times do
+          pid = waitpid(::Process::WNOHANG)
+          break if done?
+          sleep 0.1
+        end
+      else
+        # block indefinitely
+        pid = waitpid(0)
+      end
+      return pid
     end
 
     #
