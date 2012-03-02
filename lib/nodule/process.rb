@@ -196,7 +196,7 @@ module Nodule
     #
     def wait(timeout=nil)
       if timeout and timeout > 0
-        (timeout / 0.1).times do
+        (timeout / 0.1).to_i.times do
           pid = waitpid(::Process::WNOHANG)
           break if done?
           sleep 0.1
