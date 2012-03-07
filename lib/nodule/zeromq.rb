@@ -240,9 +240,8 @@ module Nodule
         @poller.readables.each do |sock|
           rc = sock.recv_strings messages=[]
           if rc > -1
-            count += 1
-
             if sock == @socket
+              count += 1
               run_readers(messages)
             # the main thread can send messages through to be resent or "exit" to shut down this thread
             elsif sock == @child
