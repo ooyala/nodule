@@ -25,9 +25,6 @@ module Nodule
       @rmutex = Mutex.new
       @wmutex = Mutex.new
 
-      @want_reader_output = opts[:capture_readers]
-      @want_writer_output = opts[:capture_writers]
-
       # only check for console color support once rather than for every line of output
       # console_prefix will be filled in when run() is called so it can grab the key
       # from the topology
@@ -146,14 +143,15 @@ module Nodule
     def add_reader(action=nil, &block)
       if block_given?
         @readers << block
+        return unless action
       end
 
       if action.respond_to? :call
         @readers << action
       elsif action == :capture
         @readers << proc { |item| @output.push(item) }
-      elsif action == :drain and @readers.empty?
-        @readers << proc { |item| item } # make sure there's at least one proc so recvmsg gets run
+      elsif action == :drain
+        @readers << proc { } # make sure there's at least one proc so recvmsg gets run
       elsif action == :stderr
         @readers << @to_console
       elsif action == :ignore or action.nil?
@@ -172,9 +170,9 @@ module Nodule
  
     def run_readers(item)
       @rmutex.synchronize do
+        @readers.each { |r| debug "running action: #{r}" }
         @readers.each do |reader|
-          out = reader.call(item)
-          @reader_out.push out if @want_reader_output
+          reader.call(item)
         end
       end
     end
@@ -182,9 +180,7 @@ module Nodule
     def run_writers
       @wmutex.synchronize do
         @writers.each do |writer|
-          out = writer.call(item)
-          @writer_out.push out if @want_writer_output
-          yield out
+          writer.call(item)
         end
       end
     end
