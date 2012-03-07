@@ -8,13 +8,14 @@ module Nodule
   end
 
   class Actor
-    attr_reader :readers, :writers, :input, :output, :running
+    attr_reader :readers, :writers, :input, :output, :running, :read_count
     attr_accessor :topology
     @@mutex = Mutex.new
     @@debug = Mutex.new
 
     def initialize(opts={})
-      @readers ||= []
+      @read_count = 0
+      @readers ||= [ proc { @read_count += 1 } ]
       @writers ||= []
       @input   ||= []
       @output  ||= []
@@ -93,6 +94,28 @@ module Nodule
     end
 
     def wait(timeout=nil)
+    end
+
+    #
+    # Wait in a sleep(0.1) loop for the number of reads on the actor to reach <count>.
+    # Returns when the number of reads is given. On timeout, if a block was provided,
+    # it's called before return. Otherwise, an exception is raised.
+    #
+    # e.g. act.require_read_timeout 1, 10 do { fail }
+    # e.g. act.require_read_timeout 1, 10 rescue nil
+    #
+    def require_read_count(count, max_sleep=10)
+      started = Time.now
+      while @read_count < count
+        sleep 0.1
+        if Time.now - started >= max_sleep
+          if block_given?
+            yield
+          else
+            raise "Timeout!" 
+          end
+        end
+      end
     end
 
     #
