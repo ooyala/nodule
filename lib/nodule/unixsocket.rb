@@ -5,7 +5,7 @@ require 'nodule/tempfile'
 
 module Nodule
   class UnixSocket < Tempfile
-    attr_reader :family
+    attr_reader :family, :address, :connected
 
     def initialize(opts={})
       super(opts)
