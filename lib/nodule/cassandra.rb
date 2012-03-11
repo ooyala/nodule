@@ -35,6 +35,7 @@ module Nodule
     CLIENT_CONNECT_OPTIONS = {
       :connect_timeout => 10,
       :retries => 10,
+
       :exception_classes => [],
     }
 
@@ -48,7 +49,7 @@ module Nodule
       @keyspace   = opts[:keyspace] || "Nodule"
       #@keyspace   = opts[:keyspace] || "Nodule#{::Process.pid}"
 
-      @temp = Nodule::Tempfile.new(:directory => true, :prefix => "cassandra-")
+      @temp = Nodule::Tempfile.new(:directory => true, :prefix => "nodule-cassandra-")
       @tmp = @temp.file
 
       @data = File.join(@tmp, 'data')
