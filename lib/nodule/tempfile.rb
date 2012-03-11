@@ -3,12 +3,12 @@ require 'fileutils'
 
 module Nodule
   class Tempfile < Actor
-    PREFIX = 'nodule-'
     attr_reader :file
 
     def initialize(opts={})
       suffix = opts[:suffix] || ''
-      @file = "#{PREFIX}#{::Process.pid}-#{Nodule.next_seq}#{suffix}"
+      prefix = opts[:prefix] || 'nodule-'
+      @file = "#{prefix}#{::Process.pid}-#{Nodule.next_seq}#{suffix}"
 
       if opts[:directory]
         @is_dir = true
@@ -24,6 +24,11 @@ module Nodule
       @cleanup = opts.has_key?(:cleanup) ? opts[:cleanup] : true
 
       super(opts)
+    end
+
+    def touch(target=nil)
+      File.open(@file, "w+").close
+      @file
     end
 
     def stop
