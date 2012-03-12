@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 $:.unshift File.join(File.dirname(__FILE__), '..', 'lib')
+require "fileutils"
 
 require "test/unit"
 require 'nodule/process'
@@ -38,6 +39,7 @@ class NoduleDDCatTest < Test::Unit::TestCase
 
     assert_equal BYTES, File.new(file1.to_s).size
     assert_equal BYTES, File.new(file2.to_s).size
+    assert FileUtils.cmp(file1.to_s, file2.to_s)
   end
 end
 
