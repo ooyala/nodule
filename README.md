@@ -46,13 +46,13 @@ Example
 -------
 
     #!/usr/bin/env ruby
-    
+
     require "test/unit"
     require 'nodule/process'
     require 'nodule/topology'
     require 'nodule/tempfile'
     require 'nodule/console'
-    
+
     class NoduleSimpleTest < Test::Unit::TestCase
       def setup
         @topo = Nodule::Topology.new(
@@ -64,14 +64,14 @@ Example
             :stdout => :greenio, :stderr => :redio
           )
         )
-    
+
         @topo.run_serially
       end
-    
+
       def teardown
         @topo.cleanup
       end
-    
+
       def test_heartbeat
         filename = @topo[:file1].to_s
         assert File.exists? filename
@@ -84,6 +84,7 @@ Authors
 * Viet Nguyen
 * Noah Gibbs
 * Al Tobey
+* Jay Bhat
 
 Dependencies
 ------------
