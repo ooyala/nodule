@@ -73,7 +73,7 @@ module Nodule
       elsif proxy.kind_of? Nodule::Actor
         proxy
       elsif proxy.nil?
-        nil 
+        nil
       else
         raise ArgumentError.new "BUG: Invalid proxy class: #{proxy.class}."
       end
@@ -114,6 +114,7 @@ module Nodule
 
       @pid = spawn(command, *argv,
         :in  => @stdin_r,
+        :unsetenv_others=>true,
         :out => @stdout_w,
         :err => @stderr_w,
       )
@@ -181,7 +182,7 @@ module Nodule
     def waitpid(flag=::Process::WNOHANG)
       raise ProcessNotRunningError.new unless @pid
       raise ProcessNotRunningError.new if @status
-      
+
       pid, @status = ::Process.waitpid2(@pid, flag)
       _verbose "Waitpid on process #{@pid} returned value #{pid} and exit status #{@status.inspect}."
 
