@@ -12,6 +12,7 @@ Gem::Specification.new do |s|
   s.description = %q{Nodule lets you declare Topologies of processes, which can be started or stopped together.  You can also redirect sockets, set up interprocess communication, make assertions on captured packets between processes and generally monitor or change the interaction of any of your processes.  Nodule is great for integration testing or for bringing up complicated interdependent sets of processes on a single host.}
 
   s.rubyforge_project = "nodule"
+  s.required_ruby_version = ">= 1.9.2"
 
   s.files         = `git ls-files`.split("\n")
   s.test_files    = `git ls-files -- {test,spec,features}/*`.split("\n")
