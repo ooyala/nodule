@@ -185,9 +185,17 @@ module Nodule
     # @return [Cassandra] connection to the temporary Cassandra instance
     #
     def client(ks=@keyspace)
-      c = ::Cassandra.new(ks, "127.0.0.1:#{@rpc_port}", CLIENT_CONNECT_OPTIONS)
+      c = ::Cassandra.new(ks, self.to_s, CLIENT_CONNECT_OPTIONS)
       c.disable_node_auto_discovery!
       c
+    end
+
+    #
+    # Stringify this class to the cassandra host/port string, e.g. "127.0.0.1:12345"
+    # @return [String] Cassandra connection string.
+    #
+    def to_s
+      "127.0.0.1:#{@rpc_port}"
     end
   end
 end
