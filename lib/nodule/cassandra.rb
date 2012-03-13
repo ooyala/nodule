@@ -35,7 +35,6 @@ module Nodule
     CLIENT_CONNECT_OPTIONS = {
       :connect_timeout => 10,
       :retries => 10,
-
       :exception_classes => [],
     }
 
@@ -47,7 +46,6 @@ module Nodule
     #
     def initialize(opts={})
       @keyspace   = opts[:keyspace] || "Nodule"
-      #@keyspace   = opts[:keyspace] || "Nodule#{::Process.pid}"
 
       @temp = Nodule::Tempfile.new(:directory => true, :prefix => "nodule-cassandra-")
       @tmp = @temp.file
@@ -168,7 +166,12 @@ module Nodule
 
       configure!
       super
-      sleep 2 # wait for cassandra to start up
+
+      # Watch Cassandra's output to be sure when it's available, obviously, it's a bit fragile
+      # but (IMO) better than sleeping or poking the TCP port.
+      @stdout.lines do |line|
+        break if line =~ /Listening for thrift clients/
+      end
       create_keyspace
     end
 
