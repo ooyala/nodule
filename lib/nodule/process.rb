@@ -114,7 +114,6 @@ module Nodule
 
       @pid = spawn(command, *argv,
         :in  => @stdin_r,
-        :unsetenv_others=>true,
         :out => @stdout_w,
         :err => @stderr_w,
       )
