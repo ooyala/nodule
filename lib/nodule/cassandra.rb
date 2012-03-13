@@ -61,13 +61,14 @@ module Nodule
       @storage_port = Nodule::Util.random_tcp_port
       @ssl_storage_port = Nodule::Util.random_tcp_port
 
-      @pidfile = "#{@tmp}/#{CASSANDRA}/cassandra.pid"
-      @cassbin = "#{@tmp}/#{CASSANDRA}/bin"
+      @casshome = "#{@tmp}/#{CASSANDRA}"
+      @pidfile = "#{@casshome}/cassandra.pid"
+      @cassbin = "#{@casshome}/bin"
       @command = ["#{@cassbin}/cassandra", "-f", "-p", @pidfile]
-      @config  = "#{@tmp}/#{CASSANDRA}/conf/cassandra.yaml"
-      @envfile = "#{@tmp}/#{CASSANDRA}/conf/cassandra-env.sh"
+      @config  = "#{@casshome}/conf/cassandra.yaml"
+      @envfile = "#{@casshome}/conf/cassandra-env.sh"
 
-      super(*@command, opts)
+      super({"CASSANDRA_HOME" => @casshome}, *@command, opts)
     end
 
     #
@@ -170,7 +171,7 @@ module Nodule
       sleep 2 # wait for cassandra to start up
       create_keyspace
     end
-    
+
     #
     # Stop cassandra with a signal, clean up with recursive delete.
     #
