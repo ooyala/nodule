@@ -12,7 +12,8 @@ module Nodule
     attr_accessor :topology
 
     def initialize(*argv)
-      opts = argv[-1].kind_of?(Hash) ? argv.pop : {}
+      opts = argv[-1].is_a?(Hash) ? argv.pop : {}
+      @env = argv[0].is_a?(Hash) ? argv.shift : {}
       @mutex = Mutex.new
       @threads = []
       @status = nil
@@ -112,7 +113,7 @@ module Nodule
       @stdout,  @stdout_w = IO.pipe
       @stderr,  @stderr_w = IO.pipe
 
-      @pid = spawn(command, *argv,
+      @pid = spawn(@env, command, *argv,
         :in  => @stdin_r,
         :out => @stdout_w,
         :err => @stderr_w,
