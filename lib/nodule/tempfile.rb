@@ -7,8 +7,8 @@ module Nodule
 
     def initialize(opts={})
       suffix = opts[:suffix] || ''
-      prefix = opts[:prefix] || 'nodule-'
-      @file = "#{prefix}#{::Process.pid}-#{Nodule.next_seq}#{suffix}"
+      prefix = opts[:prefix] || 'nodule'
+      @file = "#{prefix}-#{::Process.pid}-#{Nodule.next_seq}#{suffix}"
 
       if opts[:directory]
         @is_dir = true

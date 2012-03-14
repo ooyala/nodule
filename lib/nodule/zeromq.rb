@@ -181,6 +181,8 @@ module Nodule
       @uri
     end
 
+    private
+
     # write to the socket(s) if writer proces are defined in @writers
     # assume it's ready by the time we get here, which seems to generally work with zeromq
     #
@@ -216,6 +218,7 @@ module Nodule
     # from the socket and calling the registered procs.
     # If :limit was set, will exit after that many messages are seen/processed.
     # Otherwise, exits on the next iteration if the mutex is locked (which is done in stop).
+    # Takes no arguments, doesn't return anything meaningful.
     #
     def _zmq_read
       return unless @socket
@@ -242,7 +245,7 @@ module Nodule
           if rc > -1
             if sock == @socket
               count += 1
-              run_readers(messages)
+              run_readers(messages, self)
             # the main thread can send messages through to be resent or "exit" to shut down this thread
             elsif sock == @child
               if messages[0] == "exit"

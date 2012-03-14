@@ -1,4 +1,5 @@
 require 'nodule/version'
+require 'nodule/actor'
 
 module Nodule
   class ProcessNotRunningError < StandardError; end
@@ -6,7 +7,7 @@ module Nodule
   class ProcessStillRunningError < StandardError; end
   class TopologyUnknownSymbolError < StandardError; end
 
-  class Process
+  class Process < Actor
     attr_reader :argv, :pid, :started, :ended
     attr_reader :stdin, :stdout, :stderr
     attr_accessor :topology
@@ -26,6 +27,8 @@ module Nodule
       @stdout_proxy  = _arg_to_proxy(opts, :stdout)
       @stderr_proxy  = _arg_to_proxy(opts, :stderr)
     end
+
+    private
 
     # convert symbol arguments to the to_s result of a topology item if it exists,
     # run procs, and flatten enumerbles, so
@@ -80,23 +83,32 @@ module Nodule
       end
     end
 
+    #
     # run a thread per stdio channel (in out err) if a proxy proc is set up. These
     # procs should always return a Nodule::Actor/subclass, or at least something that
     # responds to run_readers / run_writers.
+    # @param [Proc,Nodule::Actor,nil] proxy the proc/actor to call for each unit of data
+    # @param [IO] io the IO handle to read/write data
+    # @param [Symbol] method to call on the proxy for each item of data
+    # @option method [Symbol] :run_writers
+    # @example _io_proxy(@stdin_proxy,  @stdin,  :run_writers)
+    #
     def _io_proxy(proxy, io, method)
       return unless io
       actor = _resolve_proxy(proxy)
       return unless actor
       @threads << Thread.new do
         Thread.current.abort_on_exception
-        io.lines { |line| actor.send(method, line) }
+        io.lines { |line| actor.send(method, line, self) }
       end
     end
 
     def _verbose(data)
       actor = _resolve_proxy(@verbose_proxy)
-      actor.send(:run_readers, data) if actor
+      actor.send(:run_readers, data, self) if actor
     end
+
+    public
 
     def run
       raise ProcessAlreadyRunningError.new if @pid
