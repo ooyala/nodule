@@ -159,8 +159,6 @@ module Nodule
       @@mutex.synchronize(&block)
     end
 
-    private
-
     #
     # Run all of the registered reader blocks. The block should expect a single argument
     # that is an item of input. If the block has an arity of two, it will also be handed
