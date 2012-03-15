@@ -31,6 +31,7 @@ module Nodule
   class Topology
     def initialize(opts={})
       @resources = {}
+      @started = {}
 
       opts.each do |name,value|
         if value.respond_to? :topology
@@ -65,7 +66,9 @@ module Nodule
     end
 
     def start_all
-      @resources.keys.each { |key| start key }
+      @resources.keys.each do |key|
+        start key unless @started[key]
+      end
 
       # If we do many cycles, this will wind up getting called repeatedly.
       # The @all_stopped variable will make sure that's a really fast
@@ -103,6 +106,8 @@ module Nodule
 
       # run the command that starts up the node and store the subprocess for later manipulation
       @resources[name].run
+
+      @started[name] = true
     end
 
     #
@@ -117,6 +122,8 @@ module Nodule
       unless object.done?
         raise "Could not stop resource: #{object.class} #{object.inspect}"
       end
+
+      @started[name] = false
     end
 
     #
