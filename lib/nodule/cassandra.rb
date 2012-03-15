@@ -42,12 +42,12 @@ module Nodule
     # Create a new Nodule::Cassandra instance. Each instance will be its own single-node Cassandra instance.
     #
     # @param [Hash] opts the options for setup.
-    # @option opts [String] :keyspace Keyspace name to create at startup.
+    # @option opts [String] :keyspace Keyspace name to use as the default
     #
     def initialize(opts={})
       @keyspace   = opts[:keyspace] || "Nodule"
 
-      @temp = Nodule::Tempfile.new(:directory => true, :prefix => "nodule-cassandra-")
+      @temp = Nodule::Tempfile.new(:directory => true, :prefix => "nodule-cassandra")
       @tmp = @temp.file
 
       @data = File.join(@tmp, 'data')
@@ -66,6 +66,7 @@ module Nodule
       @command = ["#{@cassbin}/cassandra", "-f", "-p", @pidfile]
       @config  = "#{@casshome}/conf/cassandra.yaml"
       @envfile = "#{@casshome}/conf/cassandra-env.sh"
+      @log4j   = "#{@casshome}/conf/log4j-server.properties"
 
       super({"CASSANDRA_HOME" => @casshome}, *@command, opts)
     end
@@ -133,6 +134,14 @@ module Nodule
       env = File.read(@envfile)
       env.sub!(/JMX_PORT=['"]?\d+['"]?/, "JMX_PORT=\"#{@jmx_port}\"")
       File.open(@envfile, "w") { |file| file.puts env }
+
+      File.open(@log4j, "w") do |file|
+        file.puts "log4j.rootLogger=INFO,stdout"
+        file.puts "log4j.appender.stdout=org.apache.log4j.ConsoleAppender"
+        file.puts "log4j.appender.stdout.layout=org.apache.log4j.PatternLayout"
+        file.puts "log4j.appender.stdout.layout.ConversionPattern=%5p %d{HH:mm:ss,SSS} %m%n"
+        file.puts "log4j.logger.org.apache.thrift.server.TNonblockingServer=ERROR"
+      end
     end
 
     #
@@ -173,7 +182,6 @@ module Nodule
       @stdout.lines do |line|
         break if line =~ /Listening for thrift clients/
       end
-      create_keyspace
     end
 
     #
@@ -215,9 +223,11 @@ module Nodule
     # @option block [IO] stderr
     #
     def cli(*more_args)
-      process = Process.new(*cli_command(more_args), @opts)
+      process = Process.new(*cli_command(more_args))
       process.run
       yield process, process.stdin, process.stdout, process.stderr
+      process.stdin.puts "quit;" unless process.done?
+      process.wait 3
       process.stop
     end
 
@@ -240,9 +250,10 @@ module Nodule
     # @option block [IO] stderr
     #
     def nodetool(*more_args)
-      process = Process.new(*nodetool_command(more_args), @opts)
+      process = Process.new(*nodetool_command(more_args))
       process.run
       yield process, process.stdin, process.stdout, process.stderr
+      process.wait 3
       process.stop
     end
 
