@@ -42,32 +42,7 @@ module Nodule
       end
 
       add_reader(opts[:reader]) if opts[:reader]
-      if opts[:readers].respond_to? :each
-        opts[:readers].each { |a| add_action(@readers, a) }
-      end
-
       add_writer(opts[:writer]) if opts[:writer]
-      if opts[:writers].respond_to? :each
-        opts[:writers].each { |a| add_action(@writers, a) }
-      end
-    end
-
-    def debug(*args)
-      return unless @debug or ENV['DEBUG']
-
-      if args.respond_to?(:one?) and args.one?
-         message = "#{@prefix}#{args[0]}".color(:red)
-      else
-         message = "#{@prefix}#{args.inspect}".color(:red)
-      end
-
-      @@debug.synchronize do
-        if message.respond_to? :color
-          STDERR.puts message.color(:red)
-        else
-          STDERR.puts message
-        end
-      end
     end
 
     def run
@@ -171,7 +146,10 @@ module Nodule
         # nothing to do here
       # if it's an unrecognized symbol, defer resolution against the containing topology
       elsif action.kind_of? Symbol
-        @readers << proc { |item| @topology[action].run_readers(item, self) }
+        @readers << proc do |item|
+          raise ArgumentError.new "Cannot resolve invalid topology symbol, ':#{item}'." unless @topology[action]
+          @topology[action].run_readers(item, self)
+        end
       else
         raise ArgumentError.new "Invalid add_reader class: #{action.class}"
       end
@@ -180,6 +158,8 @@ module Nodule
     def synchronize(&block)
       @@mutex.synchronize(&block)
     end
+
+    private
 
     #
     # Run all of the registered reader blocks. The block should expect a single argument
@@ -208,6 +188,28 @@ module Nodule
       @wmutex.synchronize do
         @writers.each do |writer|
           writer.call(item)
+        end
+      end
+    end
+
+    #
+    # semi-intelligent debug output for Nodule::Actors
+    # @param [Array] args
+    #
+    def debug(*args)
+      return unless @debug or ENV['DEBUG']
+
+      if args.respond_to?(:one?) and args.one?
+         message = "#{@prefix}#{args[0]}".color(:red)
+      else
+         message = "#{@prefix}#{args.inspect}".color(:red)
+      end
+
+      @@debug.synchronize do
+        if message.respond_to? :color
+          STDERR.puts message.color(:red)
+        else
+          STDERR.puts message
         end
       end
     end
