@@ -5,15 +5,13 @@ module Nodule
   class ProcessNotRunningError < StandardError; end
   class ProcessAlreadyRunningError < StandardError; end
   class ProcessStillRunningError < StandardError; end
-  class TopologyUnknownSymbolError < StandardError; end
-
   class Process < Actor
-    attr_reader :argv, :pid, :started, :ended
+    attr_reader :argv, :pid, :started, :ended, :opts
     attr_reader :stdin, :stdout, :stderr
     attr_accessor :topology
 
     def initialize(*argv)
-      opts = argv[-1].is_a?(Hash) ? argv.pop : {}
+      @opts = argv[-1].is_a?(Hash) ? argv.pop : {}
       @env = argv[0].is_a?(Hash) ? argv.shift : {}
       @mutex = Mutex.new
       @threads = []
@@ -22,10 +20,10 @@ module Nodule
       @ended = nil
       @pid = nil
       @argv = argv
-      @verbose_proxy = _arg_to_proxy(opts, :verbose)
-      @stdin_proxy   = _arg_to_proxy(opts, :stdin)
-      @stdout_proxy  = _arg_to_proxy(opts, :stdout)
-      @stderr_proxy  = _arg_to_proxy(opts, :stderr)
+      @verbose_proxy = _arg_to_proxy(@opts, :verbose)
+      @stdin_proxy   = _arg_to_proxy(@opts, :stdin)
+      @stdout_proxy  = _arg_to_proxy(@opts, :stdout)
+      @stderr_proxy  = _arg_to_proxy(@opts, :stderr)
     end
 
     private
@@ -65,7 +63,7 @@ module Nodule
         Nodule::Actor.new(:reader => opts[key])
       elsif opts[key]
         # lazy load a handler from topology, if one doesn't exist, do nothing
-        proc { @topology.has_key?(opts[key]) ? @topology[opts[key]] : nil }
+        proc { @topology[opts[key]] }
       else
         nil
       end
@@ -76,10 +74,8 @@ module Nodule
         proxy.call
       elsif proxy.kind_of? Nodule::Actor
         proxy
-      elsif proxy.nil?
-        nil
       else
-        raise ArgumentError.new "BUG: Invalid proxy class: #{proxy.class}."
+        raise ArgumentError.new "BUG: Invalid proxy class: #{proxy.class} #{proxy}."
       end
     end
 
@@ -95,7 +91,7 @@ module Nodule
     #
     def _io_proxy(proxy, io, method)
       return unless io
-      actor = _resolve_proxy(proxy)
+      actor = _resolve_proxy(proxy) rescue nil
       return unless actor
       @threads << Thread.new do
         Thread.current.abort_on_exception
@@ -104,8 +100,11 @@ module Nodule
     end
 
     def _verbose(data)
-      actor = _resolve_proxy(@verbose_proxy)
-      actor.send(:run_readers, data, self) if actor
+      begin
+        actor = _resolve_proxy(@verbose_proxy)
+        actor.send(:run_readers, data, self)
+      rescue
+      end
     end
 
     public
