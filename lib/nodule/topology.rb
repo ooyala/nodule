@@ -133,6 +133,29 @@ module Nodule
       @resources.each { |name,object| stop name unless object.done? } unless @all_stopped
     end
 
+    def started?(key)
+      @started[key.to_sym] == true
+    end
+
+    def start_all_but(*resources)
+      @resources.keys.each do |key|
+        if !@started[key] && !resources.flatten.map(&:to_sym).include?(key)
+          start key
+        end
+      end
+
+      at_exit { stop_all_but resources }
+    end
+
+    def stop_all_but(*resources)
+      @resources.each do |name,object|
+        if !resources.flatten.map(&:to_sym).include?(name.to_sym) && !object.done?
+          puts "stopping #{name}"
+          stop name
+        end
+      end unless @all_stopped
+    end
+
     def cleanup
       @resources.each { |_,object| object.stop }
     end
