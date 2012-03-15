@@ -16,7 +16,7 @@ module Nodule
   # The version of Cassandra is hard-coded to 1.0.8.
   #
   class Cassandra < Process
-    attr_reader :tmp, :keyspace, :data, :caches, :commit, :pidfile, :config, :envfile
+    attr_reader :tmp, :keyspace, :data, :caches, :commit, :pidfile, :cassbin, :config, :envfile
 
     # These two must match. Apache posts the md5's on the download site.
     VERSION = "1.0.8"
@@ -54,6 +54,7 @@ module Nodule
       @caches = File.join(@tmp, 'caches')
       @commit = File.join(@tmp, 'commitlogs')
 
+      @host = "127.0.0.1" # will support 127.0.0.2 someday
       @jmx_port = Nodule::Util.random_tcp_port
       @rpc_port = Nodule::Util.random_tcp_port
       @storage_port = Nodule::Util.random_tcp_port
@@ -120,8 +121,8 @@ module Nodule
         "saved_caches_directory" => @caches.encode("us-ascii"),
         "storage_port"           => @storage_port.to_i,
         "ssl_storage_port"       => @ssl_storage_port.to_i,
-        "listen_address"         => "127.0.0.1",
-        "rpc_address"            => "127.0.0.1",
+        "listen_address"         => @host.encode("us-ascii"),
+        "rpc_address"            => @host.encode("us-ascii"),
         "rpc_port"               => @rpc_port.to_i,
         # DSE doesn't work OOTB as a single node unless you switch to simplesnitch
         "endpoint_snitch"        => "org.apache.cassandra.locator.SimpleSnitch",
@@ -195,11 +196,62 @@ module Nodule
     end
 
     #
+    # Returns the fully-quailified cassandra-cli command with host & port set. If given a list of
+    # arguments, they're tacked on automatically.
+    # @param [Array] more_args additional command-line arguments
+    # @return [Array] an argv-style array ready to use with Nodule::Process or Kernel.spawn
+    #
+    def cli_command(*more_args)
+      [File.join(@cassbin, 'cassandra-cli'), '-h', @host, '-p', @rpc_port, more_args].flatten
+    end
+
+    #
+    # Run a block with access to cassandra-cli's stdio.
+    # @param [Array] more_args additional command-line arguments
+    # @yield block with CLI attached
+    # @option block [Nodule::Process] process Nodule::Process object wrapping the CLI
+    # @option block [IO] stdin
+    # @option block [IO] stdout
+    # @option block [IO] stderr
+    #
+    def cli(*more_args)
+      process = Process.new(*cli_command(more_args), @opts)
+      process.run
+      yield process, process.stdin, process.stdout, process.stderr
+      process.stop
+    end
+
+    #
+    # Returns the fully-quailified nodetool command with host & JMX port set. If given a list of
+    # arguments, they're tacked on automatically.
+    # @param [Array] more_args additional command-line arguments
+    # @return [Array] an argv-style array ready to use with Nodule::Process or Kernel.spawn
+    #
+    def nodetool_command(*more_args)
+      [File.join(@cassbin, 'nodetool'), '-h', @host, '-p', @jmx_port, more_args].flatten
+    end
+
+    #
+    # @param [Array] more_args additional command-line arguments
+    # @yield block with CLI attached
+    # @option block [Nodule::Process] process Nodule::Process object wrapping the CLI
+    # @option block [IO] stdin
+    # @option block [IO] stdout
+    # @option block [IO] stderr
+    #
+    def nodetool(*more_args)
+      process = Process.new(*nodetool_command(more_args), @opts)
+      process.run
+      yield process, process.stdin, process.stdout, process.stderr
+      process.stop
+    end
+
+    #
     # Stringify this class to the cassandra host/port string, e.g. "127.0.0.1:12345"
     # @return [String] Cassandra connection string.
     #
     def to_s
-      "127.0.0.1:#{@rpc_port}"
+      [@host, @rpc_port].join(':')
     end
   end
 end
