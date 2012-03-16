@@ -25,7 +25,7 @@ module Nodule
       @argv = argv
       @verbose = @opts[:verbose]
       run if @opts[:run]
-      # don't call super, stdio is set up in run()
+      super(@opts)
     end
 
     # convert symbol arguments to the to_s result of a topology item if it exists,
@@ -61,7 +61,7 @@ module Nodule
       # to be a completeley separate argument. This is likely due to a bug in spawn().
       command = argv.shift
 
-      _verbose "Spawning: #{command} #{argv.join(' ')}"
+      verbose "Spawning: #{command} #{argv.join(' ')}"
 
       @stdin_r, @stdin    = IO.pipe
       @stdout,  @stdout_w = IO.pipe
@@ -79,8 +79,7 @@ module Nodule
       @stdout_w.close
       @stderr_w.close
 
-      # don't return until the process shows up or 10 seconds go by (probably failure)
-      wait(10)
+      super
     end
 
     #
@@ -100,7 +99,7 @@ module Nodule
       raise ArgumentError.new "negative signals are wrong and unsupported" unless sig > 0
       raise ProcessNotRunningError.new unless @pid
 
-      _verbose "Sending signal #{sig} to process #{@pid}."
+      verbose "Sending signal #{sig} to process #{@pid}."
       ::Process.kill(sig, @pid)
       # do not catch ESRCH - ESRCH means we did something totally buggy, likewise, an exception
       # should fire if the process is not running since there's all kinds of code already checking
