@@ -8,6 +8,7 @@ require 'nodule/process'
 class NoduleProcessTest < MiniTest::Unit::TestCase
   def test_process
     p = Nodule::Process.new("/bin/true", :run => true)
+    p.wait 2
     assert p.done?, "true exits immediately, done? should be true"
   end
 end

@@ -160,8 +160,7 @@ module Nodule
     end
 
     #
-    # Run the download or untar the cached tarball. Configure, start Cassandra, and create
-    # the keyspace.
+    # Run the download or untar the cached tarball. Configure then start Cassandra.
     #
     def run
       FileUtils.mkdir_p @data

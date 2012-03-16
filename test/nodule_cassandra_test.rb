@@ -20,8 +20,6 @@ class NoduleCassandraTest < MiniTest::Unit::TestCase
 
     assert_kind_of Cassandra, cass.client
 
-    cass.create_keyspace
-
     cfdef = CassandraThrift::CfDef.new :name => "foo", :keyspace => KEYSPACE
     refute_nil cass.client.add_column_family cfdef
 
