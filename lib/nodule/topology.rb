@@ -34,15 +34,18 @@ module Nodule
       @started = {}
 
       opts.each do |name,value|
-        if value.respond_to? :topology
-          value.topology = self
-          @resources[name] = value
-        else
-          raise TopologyIntegrationRequiredError.new "#{name} => #{value} does not respond to :topology"
-        end
+        inject_topology(name, value)
+        @resources[name] = value
       end
 
       @all_stopped = true
+    end
+
+    def inject_topology(name, value)
+      unless value.respond_to? :topology=
+        raise TopologyIntegrationRequiredError.new "#{name} => #{value} does not respond to :topology"
+      end
+      value.topology = self
     end
 
     def [](key)
@@ -50,6 +53,7 @@ module Nodule
     end
 
     def []=(key, value)
+      inject_topology(key, value)
       @resources[key] = value
     end
 
@@ -63,6 +67,10 @@ module Nodule
 
     def key(object)
       @resources.key(object)
+    end
+
+    def to_hash
+      @resources
     end
 
     def start_all
