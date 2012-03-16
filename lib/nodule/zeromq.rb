@@ -201,9 +201,9 @@ module Nodule
       count = 0
       @running = true
       while @running
-        rc = @poller.poll(0.2)
+        rc = @poller.poll(1)
         unless rc > 0
-          sleep 0.2
+          sleep 0.01
           next
         end
 
