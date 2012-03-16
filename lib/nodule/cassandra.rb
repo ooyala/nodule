@@ -68,6 +68,8 @@ module Nodule
       @envfile = "#{@casshome}/conf/cassandra-env.sh"
       @log4j   = "#{@casshome}/conf/log4j-server.properties"
 
+      opts.delete :stdout
+
       super({"CASSANDRA_HOME" => @casshome}, *@command, opts)
     end
 
