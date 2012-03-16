@@ -22,7 +22,7 @@ module Nodule
     #
     def initialize(opts={})
       @read_count = 0
-      @readers ||= [ proc { |_| @read_count += 1 } ]
+      @readers ||= []
       @output  ||= []
       @prefix  = opts[:prefix] || ''
       @verbose = opts[:verbose]
@@ -81,7 +81,7 @@ module Nodule
           if block_given?
             yield
           else
-            raise "Timeout!" 
+            raise "Timeout!"
           end
         end
       end

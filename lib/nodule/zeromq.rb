@@ -73,7 +73,7 @@ module Nodule
         if opts[:connect]
           @sockprocs << proc { @socket.connect(@uri) } # deferred
         end
-  
+
         if opts[:bind]
           @sockprocs << proc { @socket.bind(@uri) } # deferred
         end

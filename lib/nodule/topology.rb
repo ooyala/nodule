@@ -158,7 +158,6 @@ module Nodule
     def stop_all_but(*resources)
       @resources.each do |name,object|
         if !resources.flatten.map(&:to_sym).include?(name.to_sym) && !object.done?
-          puts "stopping #{name}"
           stop name
         end
       end unless @all_stopped
