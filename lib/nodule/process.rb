@@ -116,7 +116,6 @@ module Nodule
       raise ProcessNotRunningError.new if @status
 
       pid, @status = ::Process.waitpid2(@pid, flag)
-      _verbose "Waitpid on process #{@pid} returned value #{pid} and exit status #{@status.inspect}."
 
       # this is as accurate as we can get, and it will generally be good enough for test work
       @ended = Time.now if pid == @pid
@@ -131,10 +130,15 @@ module Nodule
     def wait(timeout=nil)
       pid = nil # silence warning
       if timeout and timeout > 0
-        (timeout / 0.1).to_i.times do
+        interval = 0.01
+        countdown = timeout
+
+        while countdown > 0
           pid = waitpid(::Process::WNOHANG)
           break if done?
-          sleep 0.1
+          # back off the sleep time up to 1/4 the timeout
+          sleep (interval < (timeout/4.0) ? (interval += interval) : interval)
+          countdown -= interval
         end
       else
         # block indefinitely
