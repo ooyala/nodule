@@ -96,7 +96,7 @@ module Nodule
         @sockprocs.each { |p| p.call }
 
         _zmq_read()
-        _verbose "child thread #{Thread.current} shutting down"
+        verbose "child thread #{Thread.current} shutting down"
 
         @child.close
         @socket.close if @socket
@@ -216,7 +216,7 @@ module Nodule
             # the main thread can send messages through to be resent or "exit" to shut down this thread
             elsif sock == @child
               if messages[0] == "exit"
-                _verbose "Got exit message. Exiting."
+                verbose "Got exit message. Exiting."
                 @running = false
               else
                 @socket.send_strings messages
