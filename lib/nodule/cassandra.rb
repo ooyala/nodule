@@ -223,8 +223,7 @@ module Nodule
     # @option block [IO] stderr
     #
     def cli(*more_args)
-      process = Process.new(*cli_command(more_args))
-      process.run
+      process = Process.new(*cli_command(more_args), :run => true)
       yield process, process.stdin, process.stdout, process.stderr
       process.stdin.puts "quit;" unless process.done?
       process.wait 3
@@ -250,8 +249,7 @@ module Nodule
     # @option block [IO] stderr
     #
     def nodetool(*more_args)
-      process = Process.new(*nodetool_command(more_args))
-      process.run
+      process = Process.new(*nodetool_command(more_args), :run => true)
       yield process, process.stdin, process.stdout, process.stderr
       process.wait 3
       process.stop

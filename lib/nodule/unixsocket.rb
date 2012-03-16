@@ -1,6 +1,4 @@
 require 'socket'
-require 'nodule/tap'
-require 'nodule/actor'
 require 'nodule/tempfile'
 
 module Nodule
@@ -17,7 +15,7 @@ module Nodule
 
     #
     # sock1 = Nodule::UnixSocket.new
-    # 
+    #
     def send(data)
       @socket.connect(@address) unless @connected
       @connected = true

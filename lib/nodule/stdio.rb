@@ -1,4 +1,3 @@
-require 'celluloid'
 require 'nodule/base'
 
 module Nodule

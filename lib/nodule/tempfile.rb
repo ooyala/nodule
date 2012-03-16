@@ -1,8 +1,8 @@
-require 'nodule/actor'
+require 'nodule/base'
 require 'fileutils'
 
 module Nodule
-  class Tempfile < Actor
+  class Tempfile < Base
     attr_reader :file
 
     def initialize(opts={})

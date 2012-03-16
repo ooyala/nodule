@@ -1,4 +1,4 @@
-require 'nodule/actor'
+require 'nodule/base'
 require 'rainbow'
 
 module Nodule
@@ -8,7 +8,7 @@ module Nodule
   # e.g. Nodule::Console.new(:fg => :green)
   # Nodule::Console.new(:fg => :green, :bg => :white)
   #
-  class Console < Actor
+  class Console < Base
     #
     # Create a new console actor.
     # Color values must be valid for rainbow. See its documentation.
@@ -39,9 +39,9 @@ module Nodule
     #
     def display(actor, line)
       if actor.respond_to? :prefix
-        puts "#{actor.prefix}#{line}"
+        print "#{actor.prefix}#{line}\n"
       else
-        puts line
+        print "#{line}\n"
       end
     end
 

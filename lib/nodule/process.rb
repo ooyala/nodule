@@ -1,5 +1,5 @@
 require 'nodule/version'
-require 'nodule/actor'
+require 'nodule/stdio'
 
 module Nodule
   class ProcessNotRunningError < StandardError; end
@@ -7,28 +7,26 @@ module Nodule
   class ProcessStillRunningError < StandardError; end
   class TopologyUnknownSymbolError < StandardError; end
 
-  class Process < Actor
+  class Process < Stdio
     attr_reader :argv, :pid, :started, :ended
-    attr_reader :stdin, :stdout, :stderr
     attr_accessor :topology
 
+    # @param [Array] command, argv
+    # @param [Hash] opts
+    # @option opts [Boolean] :run run immediately
+    # @option opts [Boolean] :verbose print verbose information to STDERR
     def initialize(*argv)
-      opts = argv[-1].is_a?(Hash) ? argv.pop : {}
+      @opts = argv[-1].is_a?(Hash) ? argv.pop : {}
       @env = argv[0].is_a?(Hash) ? argv.shift : {}
-      @mutex = Mutex.new
-      @threads = []
       @status = nil
       @started = nil
       @ended = nil
       @pid = nil
       @argv = argv
-      @verbose_proxy = _arg_to_proxy(opts, :verbose)
-      @stdin_proxy   = _arg_to_proxy(opts, :stdin)
-      @stdout_proxy  = _arg_to_proxy(opts, :stdout)
-      @stderr_proxy  = _arg_to_proxy(opts, :stderr)
+      @verbose = @opts[:verbose]
+      run if @opts[:run]
+      # don't call super, stdio is set up in run()
     end
-
-    private
 
     # convert symbol arguments to the to_s result of a topology item if it exists,
     # run procs, and flatten enumerbles, so
@@ -54,62 +52,6 @@ module Nodule
       end
     end
 
-    # generate a proc that returns a Nodule::Actor or subclass at the time of need,
-    # so that topology is read lazily
-    def _arg_to_proxy(opts, key)
-      # throw procs into a plain Nodule::Actor automatically rather than requiring one to be created,
-      # although it probably makes the most sense to have them created in the topology
-      if key == :stdin and opts[key].kind_of? Proc
-        Nodule::Actor.new(:writer => opts[key])
-      elsif opts[key].kind_of? Proc
-        Nodule::Actor.new(:reader => opts[key])
-      elsif opts[key]
-        # lazy load a handler from topology, if one doesn't exist, do nothing
-        proc { @topology.has_key?(opts[key]) ? @topology[opts[key]] : nil }
-      else
-        nil
-      end
-    end
-
-    def _resolve_proxy(proxy)
-      if proxy.kind_of? Proc
-        proxy.call
-      elsif proxy.kind_of? Nodule::Actor
-        proxy
-      elsif proxy.nil?
-        nil
-      else
-        raise ArgumentError.new "BUG: Invalid proxy class: #{proxy.class}."
-      end
-    end
-
-    #
-    # run a thread per stdio channel (in out err) if a proxy proc is set up. These
-    # procs should always return a Nodule::Actor/subclass, or at least something that
-    # responds to run_readers / run_writers.
-    # @param [Proc,Nodule::Actor,nil] proxy the proc/actor to call for each unit of data
-    # @param [IO] io the IO handle to read/write data
-    # @param [Symbol] method to call on the proxy for each item of data
-    # @option method [Symbol] :run_writers
-    # @example _io_proxy(@stdin_proxy,  @stdin,  :run_writers)
-    #
-    def _io_proxy(proxy, io, method)
-      return unless io
-      actor = _resolve_proxy(proxy)
-      return unless actor
-      @threads << Thread.new do
-        Thread.current.abort_on_exception
-        io.lines { |line| actor.send(method, line, self) }
-      end
-    end
-
-    def _verbose(data)
-      actor = _resolve_proxy(@verbose_proxy)
-      actor.send(:run_readers, data, self) if actor
-    end
-
-    public
-
     def run
       raise ProcessAlreadyRunningError.new if @pid
 
@@ -133,32 +75,12 @@ module Nodule
 
       @started = Time.now
 
-      _io_proxy(@stdin_proxy,  @stdin,  :run_writers)
-      _io_proxy(@stdout_proxy, @stdout, :run_readers)
-      _io_proxy(@stderr_proxy, @stderr, :run_readers)
-
       @stdin_r.close
       @stdout_w.close
       @stderr_w.close
-    end
 
-    #
-    # puts to the stdin of the child process
-    #
-    def puts(*args)
-      @stdin.puts(*args)
-    end
-
-    #
-    # Read all of the data from stdout/stderr of the child process in one go.
-    # Will raise ProcessStillRunningError if the process is still running, since otherwise this method
-    # would block.
-    #
-    def slurp
-      raise ProcessStillRunningError.new "Cannot slurp() until the process is done." unless done?
-      stdout = @stdout.lines unless @stdout_proxy
-      stderr = @stderr.lines unless @stderr_proxy
-      return stdout, stderr
+      # don't return until the process shows up or 10 seconds go by (probably failure)
+      wait(10)
     end
 
     #
@@ -168,9 +90,7 @@ module Nodule
     def reset
       raise ProcessStillRunningError.new unless done?
       @pid = nil
-      @stdin.close
-      @stdout.close
-      @stderr.close
+      close # Stdio.close
     end
 
     def _kill(sig)
@@ -207,7 +127,9 @@ module Nodule
     #
     # Call waitpid and block until the process exits or timeout is reached.
     #
+    alias :iowait :wait
     def wait(timeout=nil)
+      pid = nil # silence warning
       if timeout and timeout > 0
         (timeout / 0.1).to_i.times do
           pid = waitpid(::Process::WNOHANG)
@@ -260,8 +182,10 @@ module Nodule
     # Calls waitpid2 behind the scenes if necessary.
     # Throws ProcessNotRunningError if called before .run.
     #
+    alias :iodone? :done?
     def done?
       raise ProcessNotRunningError.new "Called .done? before .run." unless @pid
+      waitpid unless @status
       return true if @status
       waitpid == @pid
     end

@@ -1,4 +1,3 @@
-require 'nodule/actor'
 require 'nodule/tempfile'
 require 'ffi-rzmq'
 require 'thread'
@@ -97,7 +96,7 @@ module Nodule
         @sockprocs.each { |p| p.call }
 
         _zmq_read()
-        debug "child thread #{Thread.current} shutting down"
+        _verbose "child thread #{Thread.current} shutting down"
 
         @child.close
         @socket.close if @socket
@@ -183,36 +182,6 @@ module Nodule
 
     private
 
-    # write to the socket(s) if writer proces are defined in @writers
-    # assume it's ready by the time we get here, which seems to generally work with zeromq
-    #
-    # one single-part:  r.add_writer proc { "a" }
-    # many single-part: r.add_writer proc { ["a", "b", "c"] }
-    # one multipart:    r.add_writer proc { [["a", "b"]] }
-    # many multipart:   r.add_writer proc { [["a", "b"],["c","d"]] }
-    def _zmq_write
-      return if @writers.empty?
-      run_writers do |output|
-        # returned a list
-        if output.respond_to? :each
-          output.each do |item|
-            # procs can send lists of lists to achieve multi-part output
-            if item.respond_to? :map
-              messages = item.map { |i| ZMQ::Message.new i }
-              @socket.sendmsgs messages # ignore errors
-              messages.each { |m| m.close }
-            # otherwise, it's just a string or something with a sane to_s
-            else
-              @socket.send_string item.to_s
-            end
-          end
-        # returned a single item, send it as a string
-        else
-          @socket.send_string output.to_s
-        end
-      end
-    end
-
     #
     # Run a poll loop (using the zmq poller) on a 1/5 second timer, reading data
     # from the socket and calling the registered procs.
@@ -232,8 +201,6 @@ module Nodule
       count = 0
       @running = true
       while @running
-        _zmq_write()
-
         rc = @poller.poll(0.2)
         unless rc > 0
           sleep 0.2
@@ -249,7 +216,7 @@ module Nodule
             # the main thread can send messages through to be resent or "exit" to shut down this thread
             elsif sock == @child
               if messages[0] == "exit"
-                debug "Got exit message. Exiting."
+                _verbose "Got exit message. Exiting."
                 @running = false
               else
                 @socket.send_strings messages

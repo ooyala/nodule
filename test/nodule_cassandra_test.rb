@@ -14,6 +14,7 @@ class NoduleCassandraTest < MiniTest::Unit::TestCase
     end
 
     cass.run
+    cass.create_keyspace
 
     assert_nil cass.waitpid
 
