@@ -42,10 +42,10 @@ module Nodule
     end
 
     def inject_topology(name, value)
-      unless value.respond_to? :topology=
-        raise TopologyIntegrationRequiredError.new "#{name} => #{value} does not respond to :topology"
+      unless value.respond_to? :join_topology!
+        raise TopologyIntegrationRequiredError.new "#{name} => #{value} does not respond to :join_topology!"
       end
-      value.topology = self
+      value.join_topology! self
     end
 
     def [](key)

@@ -12,13 +12,13 @@ class NoduleTempfileTest < MiniTest::Unit::TestCase
     end
 
     assert_kind_of Nodule::Tempfile, tfile
-    assert_kind_of Nodule::Actor, tfile
+    assert_kind_of Nodule::Base, tfile
 
     assert_block do
       tfile = Nodule::Tempfile.new(:directory => true)
     end
     assert_kind_of Nodule::Tempfile, tfile
-    assert_kind_of Nodule::Actor, tfile
+    assert_kind_of Nodule::Base, tfile
 
     tfile.stop
   end

@@ -8,8 +8,8 @@ module Nodule
   end
 
   class Base
-    attr_reader :readers, :output, :running, :read_count
-    attr_accessor :topology, :prefix
+    attr_reader :readers, :output, :running, :read_count, :topology
+    attr_accessor :prefix
 
     #
     # Create a new Nodule handler. This is meant to be a bass class for higher-level
@@ -32,10 +32,13 @@ module Nodule
       add_readers(opts[:reader]) if opts[:reader]
     end
 
+    def join_topology!(t)
+      @topology = t
+    end
+
     def run
       @done = false
 
-      # this allows for standalone handlers in an automatic one-node topology
       unless @topology
         @toplogy = Nodule::Topology.new(:auto => self)
       end

@@ -24,7 +24,6 @@ module Nodule
       @pid = nil
       @argv = argv
       @verbose = @opts[:verbose]
-      run if @opts[:run]
       super(@opts)
     end
 

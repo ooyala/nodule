@@ -67,8 +67,28 @@ module Nodule
       @config  = "#{@casshome}/conf/cassandra.yaml"
       @envfile = "#{@casshome}/conf/cassandra-env.sh"
       @log4j   = "#{@casshome}/conf/log4j-server.properties"
+      @logfile = "#{@tmp}/system.log"
 
-      opts.delete :stdout
+      # This handler reads STDOUT to determine when Cassandra is ready for client
+      # access. Coerce the stdout option into an array as necessar so options can
+      # still be passed in.
+      if opts[:stdout]
+        unless opts[:stdout].kind_of? Array
+          opts[:stdout] = [ opts.delete(:stdout) ]
+        end
+      else
+        opts[:stdout] = []
+      end
+
+      # Watch Cassandra's output to be sure when it's available, obviously, it's a bit fragile
+      # but (IMO) better than sleeping or poking the TCP port.
+      @mutex = Mutex.new
+      @cv = ConditionVariable.new
+      opts[:stdout] << proc do |item|
+        @mutex.synchronize do
+          @cv.signal if item =~ /Listening for thrift clients/
+        end
+      end
 
       super({"CASSANDRA_HOME" => @casshome}, *@command, opts)
     end
@@ -137,13 +157,10 @@ module Nodule
       env.sub!(/JMX_PORT=['"]?\d+['"]?/, "JMX_PORT=\"#{@jmx_port}\"")
       File.open(@envfile, "w") { |file| file.puts env }
 
-      File.open(@log4j, "w") do |file|
-        file.puts "log4j.rootLogger=INFO,stdout"
-        file.puts "log4j.appender.stdout=org.apache.log4j.ConsoleAppender"
-        file.puts "log4j.appender.stdout.layout=org.apache.log4j.PatternLayout"
-        file.puts "log4j.appender.stdout.layout.ConversionPattern=%5p %d{HH:mm:ss,SSS} %m%n"
-        file.puts "log4j.logger.org.apache.thrift.server.TNonblockingServer=ERROR"
-      end
+      # relocate the system.log
+      log = File.read(@log4j)
+      log.sub!(/log4j.appender.R.File=.*$/, "log4j.appender.R.File=#{@logfile}")
+      File.open(@log4j, "w") do |file| file.puts log end
     end
 
     #
@@ -176,13 +193,12 @@ module Nodule
       end
 
       configure!
+
+      # will start Cassandra process
       super
 
-      # Watch Cassandra's output to be sure when it's available, obviously, it's a bit fragile
-      # but (IMO) better than sleeping or poking the TCP port.
-      @stdout.lines do |line|
-        break if line =~ /Listening for thrift clients/
-      end
+      # wait for Cassandra to say it's ready
+      @mutex.synchronize do @cv.wait @mutex end
     end
 
     #
@@ -224,7 +240,9 @@ module Nodule
     # @option block [IO] stderr
     #
     def cli(*more_args)
-      process = Process.new(*cli_command(more_args), :run => true)
+      process = Process.new *cli_command(more_args)
+      process.join_topology! @topology
+      process.run
       yield process, process.stdin, process.stdout, process.stderr
       process.stdin.puts "quit;" unless process.done?
       process.wait 3
@@ -250,7 +268,9 @@ module Nodule
     # @option block [IO] stderr
     #
     def nodetool(*more_args)
-      process = Process.new(*nodetool_command(more_args), :run => true)
+      process = Process.new *nodetool_command(more_args)
+      process.join_topology! @topology
+      process.run
       yield process, process.stdin, process.stdout, process.stderr
       process.wait 3
       process.stop

@@ -14,9 +14,9 @@ class NoduleStdioTest < MiniTest::Unit::TestCase
 
   def test_stdio
     io = Nodule::Stdio.new(
-      :stdin => @stdin,
-      :stdout => @stdout,
-      :stderr => @stderr
+      :in  => @stdin,
+      :out => @stdout,
+      :err => @stderr
     )
 
     assert io.wait(0.01), "stdin should be ready, this should be instant"

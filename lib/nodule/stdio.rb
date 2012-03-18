@@ -3,55 +3,65 @@ require 'nodule/base'
 module Nodule
   class Stdio < Base
     attr_reader :stdin, :stdout, :stderr
-    attr_reader :stdout_proxy, :stderr_proxy
 
     def initialize(opts={})
-      @threads = []
       @running = false
-      @handlers = {}
-      @mutex = Mutex.new
-      @stdout_handler = opts.delete :stdout
-      @stderr_handler = opts.delete :stderr
+
+      @stdin = opts[:in]
+      @stdout = opts[:out]
+      @stderr = opts[:err]
+
+      @stdout_handler = Nodule::Base.new
+      @stderr_handler = Nodule::Base.new
+      @stdout_handler.add_readers(opts.delete(:stdout)) if opts[:stdout]
+      @stderr_handler.add_readers(opts.delete(:stderr)) if opts[:stderr]
 
       super(opts)
+    end
+
+    def join_topology!(t)
+      @stdout_handler.join_topology! t
+      @stderr_handler.join_topology! t
+      super(t)
     end
 
     #
     # Create a background thread to read from an IO and call Nodule run_readers.
     # @param [IO] io
-    # @param [Proc, Nodule::Base] handler
+    # @param [Nodule::Base] handler
     #
-    def _run_handler(io, handler)
-      name = io.to_s
-
-      @threads << Thread.new do
+    def _io_thread(io, handler)
+      Thread.new do
         Thread.current.abort_on_exception = true
-
-        @mutex.synchronize do
-          @handlers[name] = Nodule::Base.new :reader => handler
-          @handlers[name].topology = @topology
-          @handlers[name].run
-        end
-
-        io.each do |line|
-          @handlers[name].run_readers(line)
+        handler.run
+        while @running do
+          if _ready?([io], [], [], 0.1) and not io.eof?
+            line = io.readline
+            handler.run_readers(line, self)
+          end
         end
       end
     end
 
+    #
+    # Run stdout/stderr handlers in a background thread.
+    #
     def run
       return if @running
-
-      _run_handler(@stdout, @stdout_handler) if @stdout_handler
-      _run_handler(@stderr, @stderr_handler) if @stderr_handler
-
       @running = true
+
+      @stdout_thread = _io_thread(@stdout, @stdout_handler)
+      @stderr_thread = _io_thread(@stderr, @stderr_handler)
+
+      super
     end
 
     def stop
-      @handlers.each do |k,h| h.stop end
-      @threads.each do |t| t.join end
       @running = false
+      @stdout_handler.stop
+      @stderr_handler.stop
+      @stdout_thread.join
+      @stderr_thread.join
     end
     alias :stop! :stop
 
