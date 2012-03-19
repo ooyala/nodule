@@ -16,7 +16,7 @@ module Nodule
   # The version of Cassandra is hard-coded to 1.0.8.
   #
   class Cassandra < Process
-    attr_reader :tmp, :keyspace, :data, :caches, :commit, :pidfile, :cassbin, :config, :envfile
+    attr_reader :tmp, :keyspace, :data, :caches, :commit, :pidfile, :cassbin, :config, :envfile, :rpc_port
 
     # These two must match. Apache posts the md5's on the download site.
     VERSION = "1.0.8"
@@ -217,6 +217,9 @@ module Nodule
     def client(ks=@keyspace)
       c = ::Cassandra.new(ks, self.to_s, CLIENT_CONNECT_OPTIONS)
       c.disable_node_auto_discovery!
+
+      yield(c) if block_given?
+
       c
     end
 
