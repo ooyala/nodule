@@ -149,7 +149,7 @@ module Nodule
     end
 
     def start_all_but(*resources)
-      @resources.flatten.keys.each do |key|
+      @resources.keys.each do |key|
         if !@started[key] && !resources.flatten.map(&:to_sym).include?(key)
           start key
         end
@@ -159,7 +159,7 @@ module Nodule
     end
 
     def stop_all_but(*resources)
-      @resources.flatten.each do |name,object|
+      @resources.each do |name,object|
         if !resources.flatten.map(&:to_sym).include?(name.to_sym) && !object.done?
           stop name
         end
