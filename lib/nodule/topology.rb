@@ -109,29 +109,32 @@ module Nodule
     # Starts the node in the topology. Looks up the node's command
     # given that the topology hash is keyed off of the node's name.
     #
-    def start name
+    def start(*names)
       @all_stopped = false
+      names.flatten.each do |name|
+        # run the command that starts up the node and store the subprocess for later manipulation
+        @resources[name].run
 
-      # run the command that starts up the node and store the subprocess for later manipulation
-      @resources[name].run
-
-      @started[name] = true
+        @started[name] = true
+      end
     end
 
     #
     # Immediately kills a node given its topology name
     #
-    def stop name
-      object = @resources[name]
-      object.stop
-      object.wait 1 unless object.done?
-      object.stop!  unless object.done?
-      object.wait 1 unless object.done?
-      unless object.done?
-        raise "Could not stop resource: #{object.class} #{object.inspect}"
-      end
+    def stop(*names)
+      names.flatten.each do |name|
+        object = @resources[name]
+        object.stop
+        object.wait 1 unless object.done?
+        object.stop!  unless object.done?
+        object.wait 1 unless object.done?
+        unless object.done?
+          raise "Could not stop resource: #{object.class} #{object.inspect}"
+        end
 
-      @started[name] = false
+        @started[name] = false
+      end
     end
 
     #
