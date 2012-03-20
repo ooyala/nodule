@@ -174,7 +174,7 @@ module Nodule
     # Return Process::Status as returned by Process::waitpid2.
     #
     def status
-      raise ProcessNotRunningError.new "Called .status before .run." unless @pid
+      raise ProcessNotRunningError.new "#@prefix called .status before .run." unless @pid
       waitpid unless @status
       @status
     end
@@ -186,7 +186,7 @@ module Nodule
     #
     alias :iodone? :done?
     def done?
-      raise ProcessNotRunningError.new "Called .done? before .run." unless @pid
+      raise ProcessNotRunningError.new "#@prefix called .done? before .run." unless @pid
       waitpid unless @status
       return true if @status
       waitpid == @pid

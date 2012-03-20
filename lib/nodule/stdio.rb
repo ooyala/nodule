@@ -19,10 +19,10 @@ module Nodule
       super(opts)
     end
 
-    def join_topology!(t)
+    def join_topology!(t, name='')
       @stdout_handler.join_topology! t
       @stderr_handler.join_topology! t
-      super(t)
+      super(t, name)
     end
 
     #

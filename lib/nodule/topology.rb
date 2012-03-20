@@ -45,7 +45,7 @@ module Nodule
       unless value.respond_to? :join_topology!
         raise TopologyIntegrationRequiredError.new "#{name} => #{value} does not respond to :join_topology!"
       end
-      value.join_topology! self
+      value.join_topology! self, name
     end
 
     def [](key)

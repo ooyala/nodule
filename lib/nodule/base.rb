@@ -32,8 +32,9 @@ module Nodule
       add_readers(opts[:reader]) if opts[:reader]
     end
 
-    def join_topology!(t)
+    def join_topology!(t, name='')
       @topology = t
+      @prefix = name if @prefix.nil? || @prefix.empty?
     end
 
     def run
