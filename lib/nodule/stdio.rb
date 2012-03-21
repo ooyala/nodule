@@ -22,7 +22,7 @@ module Nodule
     def join_topology!(t, name='')
       @stdout_handler.join_topology! t
       @stderr_handler.join_topology! t
-      super(t, name)
+      super
     end
 
     #
