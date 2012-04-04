@@ -113,7 +113,7 @@ module Nodule
       @all_stopped = false
       names.flatten.each do |name|
         # run the command that starts up the node and store the subprocess for later manipulation
-        @resources[name].run
+        @resources[name].run unless @started[name]
 
         @started[name] = true
       end

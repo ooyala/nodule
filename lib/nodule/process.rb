@@ -19,8 +19,8 @@ module Nodule
       @opts = argv[-1].is_a?(Hash) ? argv.pop : {}
       @env = argv[0].is_a?(Hash) ? argv.shift : {}
       @status = nil
-      @started = nil
-      @ended = nil
+      @started = -1   # give started and ended default values
+      @ended = -2
       @pid = nil
       @argv = argv
       @verbose = @opts[:verbose]
@@ -52,7 +52,10 @@ module Nodule
     end
 
     def run
-      raise ProcessAlreadyRunningError.new if @pid
+      # raise exception only if the start time comes after the end time
+      if @started > @ended
+        raise ProcessAlreadyRunningError.new if @pid
+      end
 
       argv = @argv.map { |arg| _apply_topology(arg) }
 
