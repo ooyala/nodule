@@ -92,6 +92,14 @@ module Nodule
     end
 
     #
+    # Reset the read count to zero and clear any captured output.
+    #
+    def clear!
+      @read_count = 0
+      @output.clear
+    end
+
+    #
     # Add a reader action. Can be a block which will be executed for each unit of input, :capture
     # to capture all items emitted by the target to a list (accessible with .output), :ignore, or
     # nil (which will be ignored).
