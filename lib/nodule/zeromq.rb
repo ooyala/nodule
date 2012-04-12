@@ -111,6 +111,14 @@ module Nodule
       @pipe
     end
 
+    #
+    # For PUB sockets only, subscribe to a prefix.
+    # @param [String] subscription prefix, usually ""
+    #
+    def subscribe(subscription)
+      @pipe.send_strings ["subscribe", subscription]
+    end
+
     def done?
       @stopped
     end
@@ -218,6 +226,8 @@ module Nodule
               if messages[0] == "exit"
                 verbose "Got exit message. Exiting."
                 @running = false
+              elsif messages[0] == "subscribe"
+                @socket.setsockopt ::ZMQ::SUBSCRIBE, messages[1]
               else
                 @socket.send_strings messages
               end
