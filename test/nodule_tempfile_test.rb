@@ -7,16 +7,13 @@ require 'nodule/tempfile'
 class NoduleTempfileTest < MiniTest::Unit::TestCase
   def test_basic
     tfile = nil
-    assert_block do
-      tfile = Nodule::Tempfile.new
-    end
+    assert (tfile = Nodule::Tempfile.new), "Can't create Nodule::Tempfile!"
 
     assert_kind_of Nodule::Tempfile, tfile
     assert_kind_of Nodule::Base, tfile
 
-    assert_block do
-      tfile = Nodule::Tempfile.new(:directory => true)
-    end
+    assert (tfile = Nodule::Tempfile.new(:directory => true)),
+      "Can't create Nodule::Tempfile on a directory!"
     assert_kind_of Nodule::Tempfile, tfile
     assert_kind_of Nodule::Base, tfile
 
