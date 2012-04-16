@@ -14,7 +14,7 @@ module Nodule
     private
 
     def setsockopt(socket, option, value)
-      if option == ::ZMQ::HWM && ::ZMW::LibZMQ.version3?
+      if option == :hwm && ::ZMW::LibZMQ.version3?
         rc = socket.setsockopt(::ZMQ::SNDHWM, value)
         rc = socket.setsockopt(::ZMQ::RCVHWM, value) if rc > -1
       else
@@ -55,8 +55,8 @@ module Nodule
       @pipe_uri = "inproc://pair-#{Nodule.next_seq}"
       @pipe = @ctx.socket(::ZMQ::PAIR)
       @child = @ctx.socket(::ZMQ::PAIR)
-      setsockopt(@pipe, ::ZMQ::HWM, 1)
-      setsockopt(@child, ::ZMQ::HWM, 1)
+      setsockopt(@pipe, :hwm, 1)
+      setsockopt(@child, :hwm, 1)
       setsockopt(@pipe, ::ZMQ::LINGER, 1.0)
       setsockopt(@child, ::ZMQ::LINGER, 1.0)
       @pipe.bind(@pipe_uri)
@@ -82,7 +82,7 @@ module Nodule
       # use a pre-created socket? (not supported yet)
       if @type = (opts[:connect] || opts[:bind])
         @socket = @ctx.socket(@type)
-        setsockopt(@socket, ::ZMQ::HWM, 1)
+        setsockopt(@socket, :hwm, 1)
         setsockopt(@socket, ::ZMQ::LINGER, 1.0)
 
         if opts[:connect]
