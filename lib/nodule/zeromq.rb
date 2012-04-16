@@ -11,6 +11,21 @@ module Nodule
   class ZeroMQ < Tempfile
     attr_reader :ctx, :uri, :method, :type, :limit, :error_count
 
+    private
+
+    def setsockopt(socket, option, value)
+      if option == ::ZMQ::HWM && ::ZMW::LibZMQ.version3?
+        rc = socket.setsockopt(::ZMQ::SNDHWM, value)
+        rc = socket.setsockopt(::ZMQ::RCVHWM, value) if rc > -1
+      else
+        rc = socket.setsockopt(option, value)
+      end
+
+      rc
+    end
+
+    public
+
     #
     # :uri - either :gen/:generate or a string, :gen means generate an IPC URI, a string
     #         must be a valid URI.
@@ -38,12 +53,12 @@ module Nodule
       # Sockets cannot be used across thread boundaries, so use a ZMQ::PAIR socket both to synchronize thread
       # startup and pass writes form main -> thread. The .socket method will return the PAIR socket.
       @pipe_uri = "inproc://pair-#{Nodule.next_seq}"
-      @pipe = @ctx.socket(ZMQ::PAIR)
-      @child = @ctx.socket(ZMQ::PAIR)
-      @pipe.setsockopt(ZMQ::HWM, 1)
-      @child.setsockopt(ZMQ::HWM, 1)
-      @pipe.setsockopt(ZMQ::LINGER, 1.0)
-      @child.setsockopt(ZMQ::LINGER, 1.0)
+      @pipe = @ctx.socket(::ZMQ::PAIR)
+      @child = @ctx.socket(::ZMQ::PAIR)
+      setsockopt(@pipe, ::ZMQ::HWM, 1)
+      setsockopt(@child, ::ZMQ::HWM, 1)
+      setsockopt(@pipe, ::ZMQ::LINGER, 1.0)
+      setsockopt(@child, ::ZMQ::LINGER, 1.0)
       @pipe.bind(@pipe_uri)
       @child.connect(@pipe_uri)
 
@@ -67,8 +82,8 @@ module Nodule
       # use a pre-created socket? (not supported yet)
       if @type = (opts[:connect] || opts[:bind])
         @socket = @ctx.socket(@type)
-        @socket.setsockopt(ZMQ::HWM, 1)
-        @socket.setsockopt(ZMQ::LINGER, 1.0)
+        setsockopt(@socket, ::ZMQ::HWM, 1)
+        setsockopt(@socket, ::ZMQ::LINGER, 1.0)
 
         if opts[:connect]
           @sockprocs << proc { @socket.connect(@uri) } # deferred
