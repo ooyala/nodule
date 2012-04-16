@@ -14,7 +14,7 @@ module Nodule
     private
 
     def setsockopt(socket, option, value)
-      if option == :hwm && ::ZMW::LibZMQ.version3?
+      if option == :hwm && ::ZMQ::LibZMQ.version3?
         rc = socket.setsockopt(::ZMQ::SNDHWM, value)
         rc = socket.setsockopt(::ZMQ::RCVHWM, value) if rc > -1
       else
