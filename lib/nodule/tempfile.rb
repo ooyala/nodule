@@ -19,6 +19,7 @@ module Nodule
         end
       else
         @is_dir = false
+        File.open @file, "w" do |f| f.puts "" end
       end
 
       @cleanup = opts.has_key?(:cleanup) ? opts[:cleanup] : true
