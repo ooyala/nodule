@@ -96,7 +96,11 @@ module Nodule
     def output
       out = []
       while stdout?
-        out << @stdout.readline
+        begin
+          out << @stdout.readline
+        rescue EOFError
+          break
+        end
       end
       out
     end
@@ -104,7 +108,11 @@ module Nodule
     def errors
       out = []
       while stderr?
-        out << @stderr.readline
+        begin
+          out << @stderr.readline
+        rescue EOFError
+          break
+        end
       end
       out
     end
