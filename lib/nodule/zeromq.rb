@@ -18,6 +18,7 @@ module Nodule
         rc = socket.setsockopt(::ZMQ::SNDHWM, value)
         rc = socket.setsockopt(::ZMQ::RCVHWM, value) if rc > -1
       else
+        option = ::ZMQ::HWM if option == :hwm
         rc = socket.setsockopt(option, value)
       end
 
@@ -27,13 +28,15 @@ module Nodule
     public
 
     #
-    # :uri - either :gen/:generate or a string, :gen means generate an IPC URI, a string
-    #         must be a valid URI.
-    # :limit - exit the read loop after :limit messages are received
-    # :connect - create a socket and connect to the URI
-    # :bind - create a socket and bind to the URI
+    # @param [Hash{Symbol => Object}] opts named parameters
+    # @option [String] :uri either :gen/:generate or a string, :gen means generate an IPC URI,
+    #                       a string must be a valid URI.
+    # @option [Fixnum] :limit exit the read loop after :limit messages are received
+    # @option [String,Symbol] :connect create a socket and connect to the URI
+    # @option [String,Symbol] :bind create a socket and bind to the URI
     #
     # :connect and :bind are allowed at the same time and must be of the same socket type.
+    # ZMQ::SUB sockets that are connected/bound will subscribe to "" by default.
     #
     # For the rest of the options, see Hastur::Test::Resource::Base.
     #
@@ -68,9 +71,9 @@ module Nodule
         when :gen, :generate
           @uri = "ipc://#{@file.to_s}"
         when String
-          @uri = val
+          @uri = opts[:uri]
         else
-          raise ArgumentError.new "Invalid URI specifier: (#{val.class}) '#{val}'"
+          raise ArgumentError.new "Invalid URI specifier: (#{opts[:uri].class}) '#{opts[:uri]}'"
       end
 
       if opts[:connect] and opts[:bind] and opts[:connect] != opts[:bind]
@@ -91,6 +94,17 @@ module Nodule
 
         if opts[:bind]
           @sockprocs << proc { @socket.bind(@uri) } # deferred
+        end
+
+        # by default, subscribe to "" on ZMQ::SUB sockets, since that's what we want
+        # the vast majority of the time. Also allow specifying a subscription for those
+        # times we want something else.
+        if @type == ::ZMQ::SUB
+          if opts[:subscribe]
+            @sockprocs << proc { subscribe(opts[:subscribe]) }
+          else
+            @sockprocs << proc { subscribe("") }
+          end
         end
       end
 

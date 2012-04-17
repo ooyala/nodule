@@ -92,6 +92,7 @@ module Nodule
     end
 
     # might consider the slow/easy path and do 1-byte reads, that way newlines aren't required
+    # TODO: does this always capture? Could use an unreasonable amount of memory ...
     def output
       out = []
       while stdout?
