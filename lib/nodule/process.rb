@@ -69,6 +69,9 @@ module Nodule
       @stdout,  @stdout_w = IO.pipe
       @stderr,  @stderr_w = IO.pipe
 
+      @stdout_handler = Nodule::LineIO.new :io => @stdout, :reader => @stdout_opts, :topology => @topology, :run => true
+      @stderr_handler = Nodule::LineIO.new :io => @stderr, :reader => @stderr_opts, :topology => @topology, :run => true
+
       @pid = spawn(@env, command, *argv,
         :in  => @stdin_r,
         :out => @stdout_w,
@@ -80,11 +83,6 @@ module Nodule
       @stdin_r.close
       @stdout_w.close
       @stderr_w.close
-
-      @stdout_handler = Nodule::LineIO.new :io => @stdout, :reader => @stdout_opts, :topology => @topology, :run => true
-      @stderr_handler = Nodule::LineIO.new :io => @stderr, :reader => @stderr_opts, :topology => @topology, :run => true
-
-      Thread.pass
 
       super
     end

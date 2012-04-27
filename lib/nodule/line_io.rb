@@ -17,6 +17,7 @@ module Nodule
       @running = false
       raise ArgumentError.new ":io is required and must be a descendent of IO" unless opts[:io].kind_of?(IO)
       @io = opts.delete(:io)
+
       super(opts)
     end
 
@@ -24,13 +25,13 @@ module Nodule
     # Create a background thread to read from IO and call Nodule run_readers.
     #
     def run
-      @running = true
       super
 
       Thread.new do
         begin
+          @running = true # relies on the GIL
           while @running do
-            ready = IO.select([@io], [], [], 0.5)
+            ready = IO.select([@io], [], [], 0.2)
             unless ready.nil?
               line = @io.readline
               run_readers(line, self)
@@ -45,6 +46,8 @@ module Nodule
           abort e
         end
       end
+
+      wait_with_backoff 30 do @running end
     end
 
     #
