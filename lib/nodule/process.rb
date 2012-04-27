@@ -95,9 +95,9 @@ module Nodule
     #
     def reset
       raise ProcessStillRunningError.new unless done?
-      close
       @stdout_handler.stop
       @stderr_handler.stop
+      close
       @pid = nil
     end
 
@@ -169,11 +169,11 @@ module Nodule
     def stop
       return if done?
       _kill 15 # never negative!
-      close
       @stdout_handler.stop
       @stderr_handler.stop
       sleep 0.05
       @pid == waitpid
+      close
     end
 
     #
@@ -189,6 +189,7 @@ module Nodule
       @stderr_handler.stop!
       sleep 0.1
       @pid == waitpid
+      close
     end
 
     #
@@ -332,9 +333,9 @@ module Nodule
     # Close all of the pipes.
     #
     def close
-      @stdin.close  unless @stdin.nil?
-      @stdout.close unless @stdout.nil?
-      @stderr.close unless @stderr.nil?
+      @stdin.close rescue nil
+      @stdout.close rescue nil
+      @stderr.close rescue nil
     end
 
     #
