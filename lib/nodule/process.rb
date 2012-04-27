@@ -137,28 +137,22 @@ module Nodule
     alias :iowait :wait
     def wait(timeout=nil)
       pid = nil # silence warning
-      if timeout and timeout > 0
-        interval = 0.01
-        countdown = timeout
 
-        while countdown > 0
-          break if @status
-          pid = waitpid(::Process::WNOHANG)
-          break if done?
-          # back off the sleep time up to 1/4 the timeout
-          if interval < (timeout/4.0)
-            interval += interval
-          else
-            interval
-          end
-          sleep interval
-          countdown -= interval
-        end
-      else
-        # block indefinitely
-        pid = waitpid(0)
+      # block indefinitely on nil/0 timeout
+      unless timeout
+        return waitpid(0)
       end
-      return pid
+
+      wait_with_backoff timeout do
+        if @status
+          true
+        else
+          pid = waitpid(::Process::WNOHANG)
+          done?
+        end
+      end
+
+      pid
     end
 
     #
