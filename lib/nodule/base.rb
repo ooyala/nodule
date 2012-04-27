@@ -91,7 +91,7 @@ module Nodule
     end
 
     #
-    # Returns the captured output and resets it.
+    # Returns the captured output and clears the buffer (just like clear! but with a return value).
     # Will raise an exception if capture is not enabled.
     # @return [Array<String>]
     #
@@ -111,15 +111,15 @@ module Nodule
     end
 
     #
-    # A dead-simple decaying loop. Calls your block every @sleeptime seconds, increasing the sleep
+    # A dead-simple backoff loop. Calls your block every @sleeptime seconds, increasing the sleep
     # time by sleeptime every iteration, up to timeout, at which point false will be returned. If
-    # the block returns a true value, it is returned.
+    # the block returns an non-false/nil value, it is returned.
     # @param [Float,Fixnum] timeout
     # @param [Float,Fixnum] sleeptime
     # @yield block that returns false to continue waiting, non-false to return that value
     # @return block return value or false if timeout
     #
-    def decay(timeout, sleeptime=0.01)
+    def wait_with_backoff(timeout, sleeptime=0.01)
       raise "a block to execute on each iteration is required" unless block_given?
       started = Time.now
       loop do
@@ -132,6 +132,8 @@ module Nodule
         end
       end
     end
+    # temporary 2012-04-27, remove after cleaning up all users of decay()
+    alias :decay, :wait_with_backoff
 
     #
     # Wait in a sleep(0.1) loop for the number of reads on the handler to reach <count>.
