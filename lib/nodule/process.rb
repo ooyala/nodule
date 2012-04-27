@@ -246,6 +246,7 @@ module Nodule
     def stdout!
       @stdout_handler.output!
     end
+    alias :output! :stdout!
 
     #
     # Clear the stdout buffer and reset the counter.
