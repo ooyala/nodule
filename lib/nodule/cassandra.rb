@@ -246,8 +246,8 @@ module Nodule
       process = Process.new *cli_command(more_args)
       process.join_topology! @topology
       process.run
-      yield process, process.stdin, process.stdout, process.stderr
-      process.stdin.puts "quit;" unless process.done?
+      yield process, process.stdin_pipe, process.stdout_pipe, process.stderr_pipe
+      process.print "quit;\n" unless process.done?
       process.wait 3
       process.stop
     end
@@ -274,7 +274,7 @@ module Nodule
       process = Process.new *nodetool_command(more_args)
       process.join_topology! @topology
       process.run
-      yield process, process.stdin, process.stdout, process.stderr
+      yield process, process.stdin_pipe, process.stdout_pipe, process.stderr_pipe
       process.wait 3
       process.stop
     end

@@ -330,6 +330,30 @@ module Nodule
     end
 
     #
+    # Access the STDIN pipe IO object of the handle.
+    # @return [IO]
+    #
+    def stdin_pipe
+      @stdin
+    end
+
+    #
+    # Access the STDOUT pipe IO object of the handle.
+    # @return [IO]
+    #
+    def stdout_pipe
+      @stdout
+    end
+
+    #
+    # Access the STDERR pipe IO object of the handle.
+    # @return [IO]
+    #
+    def stderr_pipe
+      @stderr
+    end
+
+    #
     # Close all of the pipes.
     #
     def close
