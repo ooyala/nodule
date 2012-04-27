@@ -8,7 +8,7 @@ module Nodule
   end
 
   class Base
-    attr_reader :readers, :output, :running, :read_count, :topology
+    attr_reader :readers, :running, :read_count, :topology
     attr_accessor :prefix
 
     #
@@ -19,6 +19,8 @@ module Nodule
     # @option opts [String] :prefix text prefix for output/logs/etc.
     # @option opts [Symbol, Proc] :reader a symbol for a built-in reader, e.g. ":drain" or a proc
     # @option opts [Enumerable] :readers a list of readers instead of one :reader
+    # @option opts [TrueClass] :run run immediately
+    # @option opts [TrueClass] :verbose print verbose information to STDERR
     #
     def initialize(opts={})
       @read_count = 0
@@ -28,8 +30,11 @@ module Nodule
       @verbose = opts[:verbose]
       @done    = false
       @topology = nil
+      @capture_enabled = false
 
       add_readers(opts[:reader]) if opts[:reader]
+
+      run if opts[:run]
     end
 
     def join_topology!(t, name='')
@@ -66,6 +71,69 @@ module Nodule
     end
 
     #
+    # Returns whether or not any output has been captured.
+    # Will raise an exception if capture is not enabled.
+    # @return [TrueClass,FalseClass]
+    #
+    def output?
+      raise "output is not captured unless you enable :capture" unless @capture_enabled
+      @output.any?
+    end
+
+    #
+    # Returns a copy of currently captured output. Line data is not chomped or anything of the sort.
+    # Will raise an exception if capture is not enabled.
+    # @return [Array<String>]
+    #
+    def output
+      raise "output is not captured unless you enable :capture" unless @capture_enabled
+      @output.clone
+    end
+
+    #
+    # Returns the captured output and resets it.
+    # Will raise an exception if capture is not enabled.
+    # @return [Array<String>]
+    #
+    def output!
+      raise "output is not captured unless you enable :capture" unless @capture_enabled
+      out = @output.clone
+      clear!
+      out
+    end
+
+    #
+    # Reset the read count to zero and clear any captured output.
+    #
+    def clear!
+      @read_count = 0
+      @output.clear
+    end
+
+    #
+    # A dead-simple decaying loop. Calls your block every @sleeptime seconds, increasing the sleep
+    # time by sleeptime every iteration, up to timeout, at which point false will be returned. If
+    # the block returns a true value, it is returned.
+    # @param [Float,Fixnum] timeout
+    # @param [Float,Fixnum] sleeptime
+    # @yield block that returns false to continue waiting, non-false to return that value
+    # @return block return value or false if timeout
+    #
+    def decay(timeout, sleeptime=0.01)
+      raise "a block to execute on each iteration is required" unless block_given?
+      started = Time.now
+      loop do
+        val = yield
+        return val if val
+        return false if Time.now - started > timeout
+        sleep sleeptime
+        if sleeptime < timeout / 4
+          sleeptime += sleeptime
+        end
+      end
+    end
+
+    #
     # Wait in a sleep(0.1) loop for the number of reads on the handler to reach <count>.
     # Returns when the number of reads is given. On timeout, if a block was provided,
     # it's called before return. Otherwise, an exception is raised.
@@ -92,14 +160,6 @@ module Nodule
     end
 
     #
-    # Reset the read count to zero and clear any captured output.
-    #
-    def clear!
-      @read_count = 0
-      @output.clear
-    end
-
-    #
     # Add a reader action. Can be a block which will be executed for each unit of input, :capture
     # to capture all items emitted by the target to a list (accessible with .output), :ignore, or
     # nil (which will be ignored).
@@ -120,11 +180,12 @@ module Nodule
       if action.respond_to? :call
         @readers << action
       elsif action == :capture
+        @capture_enabled = true
         @readers << proc { |item| @output.push(item) }
       elsif action == :drain
         @readers << proc { |_| }
       elsif action == :ignore
-        # nothing to do here
+      # nothing to do here
       # if it's an unrecognized symbol, defer resolution against the containing topology
       elsif action.kind_of? Symbol
         @readers << proc do |item|
@@ -173,10 +234,12 @@ module Nodule
     # @param [Array<String>] out strings to output, will be joined with ' '
     #
     def verbose(*out)
-      if @topology and @topology[@verbose]
-        @topology[@verbose].run_readers out.join(' ')
-      elsif @verbose
-        STDERR.puts out.join(' ')
+      if @verbose
+        if @topology.respond_to? :[] and @topology[@verbose]
+          @topology[@verbose].run_readers out.join(' ')
+        else
+          STDERR.print "#{out.join(' ')}\n"
+        end
       end
     end
   end
