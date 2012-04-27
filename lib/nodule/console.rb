@@ -23,11 +23,14 @@ module Nodule
     }.freeze
 
     #
-    # Create a new console src.
-    # Color values must be valid for rainbow. See its documentation.
+    # Create a new console handler. Defaults to printing to STDERR without color.
+    # Color output is automatically disabled on non-tty devices.
+    # To see the valid colors, look at Nodule::Console::COLORS in irb/pry.
+    #
     # @param [Hash] opts
     # @option [Symbol] opts :fg the foreground color symbol
     # @option [Symbol] opts :bg the background color symbol
+    # @option [IO] opts :io default STDERR an IO object to display on, STDOUT/files should work fine
     #
     def initialize(opts={})
       super(opts)
@@ -42,8 +45,11 @@ module Nodule
         raise ArgumentError.new "bg :#{@bg} is not a valid color"
       end
 
+      # IO handle to use as the console
+      @io = opts[:io] || STDERR
+
       # from https://github.com/sickill/rainbow/blob/master/lib/rainbow.rb
-      @enabled = STDOUT.tty? && ENV['TERM'] != 'dumb' || ENV['CLICOLOR_FORCE'] == '1'
+      @enabled = @io.tty? && ENV['TERM'] != 'dumb' || ENV['CLICOLOR_FORCE'] == '1'
 
       add_reader { |line,src| display(src, line) }
     end
@@ -70,9 +76,9 @@ module Nodule
     #
     def display(src, line)
       if src.respond_to? :prefix
-        print "#{reset('')}#{src.prefix}#{reset(bg(fg(line)))}\n"
+        @io.print "#{reset('')}#{src.prefix}#{reset(bg(fg(line)))}\n"
       else
-        print "#{reset(bg(fg(line)))}\n"
+        @io.print "#{reset(bg(fg(line)))}\n"
       end
     end
 
