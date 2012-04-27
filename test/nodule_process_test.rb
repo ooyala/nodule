@@ -12,11 +12,14 @@ class NoduleProcessTest < MiniTest::Unit::TestCase
     p.run
     p.wait 2
     assert p.done?, "true exits immediately, done? should be true"
+    p.stop
 
     echo = Nodule::Process.new '/bin/echo', 'foobar', :run => true
     echo.wait 2
 
     assert_equal 'foobar', echo.output.first.chomp
     assert echo.done?, "true exits immediately, done? should be true"
+
+    echo.stop
   end
 end

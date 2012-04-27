@@ -13,6 +13,10 @@ class NoduleZeromqTest < MiniTest::Unit::TestCase
     refute_nil t2
     t3 = Nodule::ZeroMQ.new(:uri => t2.uri, :connect => ZMQ::PULL)
     refute_nil t3
+
+    t1.stop
+    t2.stop
+    t3.stop
   end
 
   def test_zeromq_pubsub
@@ -33,5 +37,8 @@ class NoduleZeromqTest < MiniTest::Unit::TestCase
       end
       sleep 0.1
     end
+
+    pub.stop
+    sub.stop
   end
 end

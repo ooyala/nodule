@@ -19,7 +19,10 @@ module Nodule
         end
       else
         @is_dir = false
-        File.open @file, "w" do |f| f.puts "" end
+        # require an explicit request to create an empty file
+        if opts[:touch]
+          File.open @file, "w" do |f| f.puts "" end
+        end
       end
 
       @cleanup = opts.has_key?(:cleanup) ? opts[:cleanup] : true
