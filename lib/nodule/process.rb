@@ -1,5 +1,5 @@
 require 'nodule/version'
-require 'nodule/stdio'
+require 'nodule/line_io'
 
 module Nodule
   class ProcessNotRunningError < StandardError; end
@@ -7,14 +7,12 @@ module Nodule
   class ProcessStillRunningError < StandardError; end
   class TopologyUnknownSymbolError < StandardError; end
 
-  class Process < Stdio
+  class Process < Base
     attr_reader :argv, :pid, :started, :ended
     attr_accessor :topology
 
     # @param [Array] command, argv
     # @param [Hash] opts
-    # @option opts [Boolean] :run run immediately
-    # @option opts [Boolean] :verbose print verbose information to STDERR
     def initialize(*argv)
       @opts = argv[-1].is_a?(Hash) ? argv.pop : {}
       @env = argv[0].is_a?(Hash) ? argv.shift : {}
@@ -23,7 +21,9 @@ module Nodule
       @ended = -2
       @pid = nil
       @argv = argv
-      @verbose = @opts[:verbose]
+      @stdout_opts = @opts.delete(:stdout) || :capture
+      @stderr_opts = @opts.delete(:stderr) || :capture
+
       super(@opts)
     end
 
@@ -81,6 +81,11 @@ module Nodule
       @stdout_w.close
       @stderr_w.close
 
+      @stdout_handler = Nodule::LineIO.new :io => @stdout, :reader => @stdout_opts, :topology => @topology, :run => true
+      @stderr_handler = Nodule::LineIO.new :io => @stderr, :reader => @stderr_opts, :topology => @topology, :run => true
+
+      Thread.pass
+
       super
     end
 
@@ -90,8 +95,10 @@ module Nodule
     #
     def reset
       raise ProcessStillRunningError.new unless done?
+      close
+      @stdout_handler.stop
+      @stderr_handler.stop
       @pid = nil
-      close # Stdio.close
     end
 
     def _kill(sig)
@@ -113,8 +120,8 @@ module Nodule
     # returned by waitpid2.
     #
     def waitpid(flag=::Process::WNOHANG)
-      raise ProcessNotRunningError.new unless @pid
-      raise ProcessNotRunningError.new if @status
+      raise ProcessNotRunningError.new "pid is not known" unless @pid
+      raise ProcessNotRunningError.new "process seems to have exited #{@status.inspect}" if @status
 
       pid, @status = ::Process.waitpid2(@pid, flag)
 
@@ -135,10 +142,16 @@ module Nodule
         countdown = timeout
 
         while countdown > 0
+          break if @status
           pid = waitpid(::Process::WNOHANG)
           break if done?
           # back off the sleep time up to 1/4 the timeout
-          sleep (interval < (timeout/4.0) ? (interval += interval) : interval)
+          if interval < (timeout/4.0)
+            interval += interval
+          else
+            interval
+          end
+          sleep interval
           countdown -= interval
         end
       else
@@ -156,6 +169,9 @@ module Nodule
     def stop
       return if done?
       _kill 15 # never negative!
+      close
+      @stdout_handler.stop
+      @stderr_handler.stop
       sleep 0.05
       @pid == waitpid
     end
@@ -169,6 +185,8 @@ module Nodule
       return if done?
 
       _kill 9 # never negative!
+      @stdout_handler.stop!
+      @stderr_handler.stop!
       sleep 0.1
       @pid == waitpid
     end
@@ -202,6 +220,121 @@ module Nodule
       raise ProcessNotRunningError.new unless @started
       raise ProcessStillRunningError.new unless @ended
       @ended - @started
+    end
+
+    #
+    # Returns whether or not any stdout has been captured.
+    # Will raise an exception if capture is not enabled.
+    # proxies: Nodule::Base.output?
+    # @return [TrueClass,FalseClass]
+    #
+    def stdout?
+      @stdout_handler.output?
+    end
+    alias :output? :stdout?
+
+    #
+    # Get all currently captured stdout. Does not clear the buffer.
+    # proxies: Nodule::Base.output
+    # @return [Array{String}]
+    #
+    def stdout
+      @stdout_handler.output
+    end
+    alias :output :stdout
+
+    #
+    # Get all currently captured stdout. Resets the buffer and counts.
+    # proxies: Nodule::Base.output!
+    # @return [Array{String}]
+    #
+    def stdout!
+      @stdout_handler.output!
+    end
+
+    #
+    # Clear the stdout buffer and reset the counter.
+    # proxies: Nodule::Base.clear!
+    #
+    def clear_stdout!
+      @stdout_handler.clear!
+    end
+    alias :clear! :clear_stdout!
+
+    #
+    # Proxies to stdout require_read_count.
+    #
+    def require_stdout_count(count, max_sleep=10)
+      @stdout_handler.require_read_count count, max_sleep
+    end
+    alias :require_read_count :require_stdout_count
+
+    #
+    # Returns whether or not any stderr has been captured.
+    # Will raise an exception if capture is not enabled.
+    # proxies: Nodule::Base.output?
+    # @return [TrueClass,FalseClass]
+    #
+    def stderr?
+      @stderr_handler.output?
+    end
+
+    #
+    # Get all currently captured stderr. Does not clear the buffer.
+    # proxies: Nodule::Base.output
+    # @return [Array{String}]
+    #
+    def stderr
+      @stderr_handler.output
+    end
+
+    #
+    # Get all currently captured stderr. Resets the buffer and counts.
+    # proxies: Nodule::Base.output!
+    # @return [Array{String}]
+    #
+    def stderr!
+      @stderr_handler.output!
+    end
+
+    #
+    # Clear the stderr buffer and reset the counter.
+    # proxies: Nodule::Base.clear!
+    #
+    def clear_stderr!
+      @stderr_handler.clear!
+    end
+
+    #
+    # Proxies to stderr require_read_count.
+    #
+    def require_stderr_count(count, max_sleep=10)
+      @stderr_handler.require_read_count count, max_sleep
+    end
+
+    #
+    # Write the to child process's stdin using IO.print.
+    # @param [String] see IO.print
+    #
+    def print(*args)
+      @stdin.print(*args)
+    end
+
+    #
+    # Write the to child process's stdin using IO.puts.
+    # @param [String] see IO.puts
+    #
+    def puts(*args)
+      @stdin.puts(*args)
+    end
+
+    #
+    # Close all of the pipes.
+    #
+    def close
+      @stdin.close  unless @stdin.nil?
+      @stdout.close unless @stdout.nil?
+      @stderr.close unless @stderr.nil?
     end
 
     #

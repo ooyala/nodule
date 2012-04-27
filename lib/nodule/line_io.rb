@@ -1,133 +1,66 @@
 require 'nodule/base'
 
 module Nodule
-  class Stdio < Base
-    attr_reader :stdin, :stdout, :stderr
-
+  class LineIO < Base
+    #
+    # A few extra bits to help with handling IO objects (files, pipes, etc.), like setting
+    # up a background thread to select() and read lines from it and call run_readers.
+    #
+    # @param [Hash{Symbol => IO,Symbol,Proc}] opts
+    # @option opts [IO] :io required IO object, pipes & files should work fine
+    #
+    # @example
+    # r, w = IO.pipe
+    # nio = Nodule::Stdio.new :io => r, :run => true
+    #
     def initialize(opts={})
       @running = false
-
-      @stdin = opts[:in]
-      @stdout = opts[:out]
-      @stderr = opts[:err]
-
-      @stdout_handler = Nodule::Base.new
-      @stderr_handler = Nodule::Base.new
-      @stdout_handler.add_readers(opts.delete(:stdout)) if opts[:stdout]
-      @stderr_handler.add_readers(opts.delete(:stderr)) if opts[:stderr]
-
+      raise ArgumentError.new ":io is required and must be a descendent of IO" unless opts[:io].kind_of?(IO)
+      @io = opts.delete(:io)
       super(opts)
     end
 
-    def join_topology!(t, name='')
-      @stdout_handler.join_topology! t
-      @stderr_handler.join_topology! t
-      super
-    end
-
     #
-    # Create a background thread to read from an IO and call Nodule run_readers.
-    # @param [IO] io
-    # @param [Nodule::Base] handler
-    #
-    def _io_thread(io, handler)
-      Thread.new do
-        Thread.current.abort_on_exception = true
-        handler.run
-        while @running do
-          if _ready?([io], [], [], 0.1) and not io.eof?
-            line = io.readline
-            handler.run_readers(line, self)
-          end
-        end
-      end
-    end
-
-    #
-    # Run stdout/stderr handlers in a background thread.
+    # Create a background thread to read from IO and call Nodule run_readers.
     #
     def run
-      return if @running
       @running = true
-
-      @stdout_thread = _io_thread(@stdout, @stdout_handler)
-      @stderr_thread = _io_thread(@stderr, @stderr_handler)
-
       super
+
+      Thread.new do
+        begin
+          while @running do
+            ready = IO.select([@io], [], [], 0.5)
+            unless ready.nil?
+              line = @io.readline
+              run_readers(line, self)
+            end
+          end
+        rescue EOFError
+          verbose "EOFError: #{@io} probably closed."
+          @io.close
+          Thread.current.exit
+        rescue Exception => e
+          STDERR.print "Exception in #{name} IO thread: #{e.inspect}\n"
+          abort e
+        end
+      end
     end
 
-    def stop
-      @running = false
-      @stdout_handler.stop
-      @stderr_handler.stop
-      @stdout_thread.join
-      @stderr_thread.join
-    end
-    alias :stop! :stop
-
-    def wait(timeout=0)      _ready?([@stdout, @stderr], [@stdin], [], timeout) end
-    def readable?(timeout=0) _ready?([@stdout,@stderr],  [],       [], timeout) end
-    def stdout?(timeout=0)   _ready?([@stdout],          [],       [], timeout) end
-    def stderr?(timeout=0)   _ready?([@stderr],          [],       [], timeout) end
-    def writable?(timeout=0) _ready?([],                 [@stdin], [], timeout) end
-
-    def _ready?(rd, wt, err, timeout)
-      # filter out any closed/nil io's
-      srd  = rd.reject  do |io| io.nil? or io.closed? end
-      swt  = wt.reject  do |io| io.nil? or io.closed? end
-      serr = err.reject do |io| io.nil? or io.closed? end
-
-      ready = IO.select(srd, swt, serr, timeout)
-      ready.respond_to? :any? and ready.any?
-    end
-
+    #
+    # simply calls print *args on the io handle
+    # @param [String] see IO.print
+    #
     def print(*args)
-      raise NotReadyError.new "stdin IO is not ready for writing" unless writable?
-      @stdin.print(*args)
+      @io.print(*args)
     end
 
+    #
+    # calls io.puts *args
+    # @param [String] see IO.print
+    #
     def puts(*args)
-      raise NotReadyError.new "stdin IO is not ready for writing" unless writable?
-      @stdin.puts(*args)
-    end
-
-    # might consider the slow/easy path and do 1-byte reads, that way newlines aren't required
-    # TODO: does this always capture? Could use an unreasonable amount of memory ...
-    def output
-      out = []
-      while stdout?
-        begin
-          out << @stdout.readline
-        rescue EOFError
-          break
-        end
-      end
-      out
-    end
-
-    def errors
-      out = []
-      while stderr?
-        begin
-          out << @stderr.readline
-        rescue EOFError
-          break
-        end
-      end
-      out
-    end
-
-    def close
-      @stdin.close  unless @stdin.nil?
-      @stdout.close unless @stdout.nil?
-      @stderr.close unless @stderr.nil?
-    end
-
-    def done?
-      (not @running) and \
-        (@stdin.nil? or @stdin.closed?) and \
-        (@stdout.nil? or @stdout.closed?) and \
-        (@stderr.nil? or @stderr.closed?)
+      @io.puts(*args)
     end
   end
 end

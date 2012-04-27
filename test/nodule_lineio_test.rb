@@ -3,49 +3,30 @@ $:.unshift File.join(File.dirname(__FILE__), '..', 'lib')
 
 require 'rubygems'
 require 'minitest/autorun'
-require 'nodule/stdio'
+require 'nodule/line_io'
 
-class NoduleStdioTest < MiniTest::Unit::TestCase
+class NoduleLineIOTest < MiniTest::Unit::TestCase
   def setup
-      @stdin_r, @stdin    = IO.pipe
-      @stdout,  @stdout_w = IO.pipe
-      @stderr,  @stderr_w = IO.pipe
+      @r_pipe, @w_pipe = IO.pipe
   end
 
   def test_stdio
-    io = Nodule::Stdio.new(
-      :in  => @stdin,
-      :out => @stdout,
-      :err => @stderr
-    )
+    io = Nodule::LineIO.new :io => @r_pipe, :run => true, :reader => :capture
 
-    assert io.wait(0.01), "stdin should be ready, this should be instant"
-    assert io.writable?(0.01), "stdin should be ready, this should be instant"
-    refute io.readable?(0.01), "no data has been written to the pipe so this should return false"
-    refute io.stdout?(0.01), "no data has been written to the pipe so this should return false"
-    refute io.stderr?(0.01), "no data has been written to the pipe so this should return false"
-
-    @stdout_w.puts "x"
-    assert io.readable?(0.01), "no data has been written to the pipe so this should return false"
-    assert io.stdout?(0.01), "no data has been written to the pipe so this should return false"
-    refute io.stderr?(0.01), "no data has been written to the pipe so this should return false"
+    @w_pipe.puts "x"
+    io.require_read_count 1, 10
     assert_equal "x", io.output.first.chomp, "read data from pipe"
 
-    @stderr_w.puts "y"
-    assert io.readable?(0.01), "no data has been written to the pipe so this should return false"
-    refute io.stdout?(0.01), "no data has been written to the pipe so this should return false"
-    assert io.stderr?(0.01), "no data has been written to the pipe so this should return false"
-    assert_equal "y", io.errors.first.chomp, "read data from pipe"
+    assert_equal 1, io.read_count
+    @w_pipe.puts "y"
+    io.require_read_count 2, 10
 
-    io.puts "z"
-    assert_equal "z", @stdin_r.readline.chomp
+    assert_equal 2, io.read_count
+    io.clear!
+    assert_equal 0, io.read_count
+    @w_pipe.puts "y"
 
-    assert io.wait(0.01), "wait should retun true before closing"
-    refute io.done?, "done? false before close"
-
-    io.close
-
-    refute io.wait(0.01), "wait should retun false after closing"
-    assert io.done?, "done? true after close"
+    io.require_read_count 1, 10
+    assert_equal "y", io.output.first.chomp, "read data from pipe"
   end
 end

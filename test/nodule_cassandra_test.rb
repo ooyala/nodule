@@ -9,7 +9,7 @@ class NoduleCassandraTest < MiniTest::Unit::TestCase
 
   def test_cassandra
     cass = nil
-    assert (cass = Nodule::Cassandra.new({:keyspace => KEYSPACE})),
+    assert (cass = Nodule::Cassandra.new({:keyspace => KEYSPACE, :verbose => true})),
       "Can't create Nodule::Cassandra!"
 
     cass.run
