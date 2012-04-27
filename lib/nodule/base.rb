@@ -133,7 +133,7 @@ module Nodule
       end
     end
     # temporary 2012-04-27, remove after cleaning up all users of decay()
-    alias :decay, :wait_with_backoff
+    alias :decay :wait_with_backoff
 
     #
     # Wait in a sleep(0.1) loop for the number of reads on the handler to reach <count>.
