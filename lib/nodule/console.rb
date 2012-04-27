@@ -24,8 +24,9 @@ module Nodule
 
     #
     # Create a new console handler. Defaults to printing to STDERR without color.
-    # Color output is automatically disabled on non-tty devices.
-    # To see the valid colors, look at Nodule::Console::COLORS in irb/pry.
+    # Color output is automatically disabled on non-tty devices. It can be
+    # force-enabled with the CLICOLOR_FORCE environment variable.
+    # The list of valid colors is in Nodule::Console::COLORS.
     #
     # @param [Hash] opts
     # @option [Symbol] opts :fg the foreground color symbol
