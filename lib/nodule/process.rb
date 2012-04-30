@@ -60,7 +60,7 @@ module Nodule
       argv = @argv.map { |arg| _apply_topology(arg) }
 
       # Simply calling spawn with *argv isn't good enough, it really needs the command
-      # to be a completeley separate argument. This is likely due to a bug in spawn().
+      # to be a completely separate argument. This is likely due to a bug in spawn().
       command = argv.shift
 
       verbose "Spawning: #{command} #{argv.join(' ')}"
