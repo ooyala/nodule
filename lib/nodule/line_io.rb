@@ -37,6 +37,11 @@ module Nodule
               run_readers(line, self)
             end
           end
+
+          # run may be over, but read the rest of the data up to EOF anyways
+          @io.foreach do |line|
+            run_readers(line, self)
+          end
         rescue EOFError
           verbose "EOFError: #{@io} probably closed."
           @io.close
