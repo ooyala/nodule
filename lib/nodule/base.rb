@@ -134,29 +134,41 @@ module Nodule
     end
 
     #
+    # Wait in a sleep loop until a condition is true or the timeout is
+    # reached.  On timeout an exception is raised.  Has no impact on
+    # normal readers.
+    #
+    # @param [Hash] opts Options for how to read and wait
+    # @option opts [Float] :max_sleep maximum number of seconds to wait
+    # @option opts [Float] :sleep_by how long to sleep by each time, default 0.1
+    # @yield block to call to check condition, returns true or false
+    # @example act.read_until(:max_sleep => 1.0) { File.exist?("/tmp/file") }
+    #
+    def read_until(opts = {}, &block)
+      raise "No block given to read_until!" unless block_given?
+      started = Time.now
+      until block.call
+        sleep (opts[:sleep_by] || 0.1)
+        if Time.now - started >= (opts[:max_sleep] || 10.0)
+          raise "Timeout!"
+        end
+      end
+    end
+
+    #
     # Wait in a sleep(0.1) loop for the number of reads on the handler to reach <count>.
     # Returns when the number of reads is given. On timeout, if a block was provided,
     # it's called before return. Otherwise, an exception is raised.
     # Has no impact on normal readers.
     #
     # @param [Fixnum] count how many reads to wait for
-    # @param [Fixnum] max_sleep maximum number of seconds to wait for the count
+    # @param [Float] max_sleep maximum number of seconds to wait for the count
     # @yield optional block to run on timeout
-    # @example act.require_read_timeout 1, 10 do { fail }
+    # @example act.require_read_timeout 1, 10 { fail }
     # @example act.require_read_timeout 1, 10 rescue nil
     #
     def require_read_count(count, max_sleep=10)
-      started = Time.now
-      while @read_count < count
-        sleep 0.1
-        if Time.now - started >= max_sleep
-          if block_given?
-            yield
-          else
-            raise "Timeout!"
-          end
-        end
-      end
+      read_until(:max_sleep => max_sleep) { @read_count == count }
     end
 
     #
