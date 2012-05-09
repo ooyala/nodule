@@ -32,8 +32,10 @@ module Nodule
       "/tmp",
     ]
 
+    # keep large timeouts, since test systems (e.g. Jenkins workers) are often very slow
     CLIENT_CONNECT_OPTIONS = {
-      :connect_timeout => 10,
+      :timeout => 30,
+      :connect_timeout => 30,
       :retries => 10,
       :exception_classes => [],
     }
