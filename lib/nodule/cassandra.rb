@@ -13,14 +13,14 @@ module Nodule
   # Generates random ports for rpc/storage and temporary directories for data,
   # commit logs, etc..
   #
-  # The version of Cassandra is hard-coded to 1.0.8.
+  # The version of Cassandra is hard-coded to 1.1.0.
   #
   class Cassandra < Process
     attr_reader :tmp, :keyspace, :data, :caches, :commit, :pidfile, :cassbin, :config, :envfile, :rpc_port
 
     # These two must match. Apache posts the md5's on the download site.
-    VERSION = "1.0.8"
-    MD5 = "676887f6d185689c3383908f3ad8e015"
+    VERSION = "1.1.0"
+    MD5 = "8befe18a4abc342d03d1fbaaa0ac836b"
 
     CASSANDRA   = "apache-cassandra-#{VERSION}"
     TARBALL     = "#{CASSANDRA}-bin.tar.gz"
@@ -172,7 +172,7 @@ module Nodule
       ksdef = CassandraThrift::KsDef.new(
         :name => @keyspace,
         :strategy_class => 'org.apache.cassandra.locator.SimpleStrategy',
-        :replication_factor => 1,
+        :strategy_options => { "replication_factor" => "1" },
         :cf_defs => []
       )
       client('system').add_keyspace ksdef
