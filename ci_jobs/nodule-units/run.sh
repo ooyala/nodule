@@ -10,7 +10,9 @@ else
   export PROJECT_DIR=$WORKSPACE/glowworm;
 fi
 
-cd $(PROJECT_DIR)
+cd $PROJECT_DIR
+
+bundle update
 
 echo START TASK: tests
 bundle exec rake test
