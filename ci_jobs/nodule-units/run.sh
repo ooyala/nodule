@@ -12,6 +12,8 @@ fi
 
 cd $PROJECT_DIR
 
+rvm use 1.9.2@nodule --create
+
 bundle update
 
 echo START TASK: tests
