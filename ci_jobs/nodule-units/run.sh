@@ -12,7 +12,7 @@ fi
 
 cd $PROJECT_DIR
 
-[[ -n $rvm_version ]] || source $HOME/.rvm/scripts/rvm;
+source $HOME/.rvm/scripts/rvm;
 rvm use 1.9.2@nodule --create
 
 bundle update
