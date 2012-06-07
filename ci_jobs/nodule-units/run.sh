@@ -7,7 +7,7 @@ if [[ -z $WORKSPACE ]] ; then
   # Support execution from the shell
   export PROJECT_DIR=$(pwd);
 else
-  export PROJECT_DIR=$WORKSPACE/glowworm;
+  export PROJECT_DIR=$WORKSPACE/nodule;
 fi
 
 cd $PROJECT_DIR
