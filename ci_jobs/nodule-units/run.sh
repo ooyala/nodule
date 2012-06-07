@@ -12,8 +12,9 @@ fi
 
 cd $PROJECT_DIR
 
-#source $HOME/.rvm/scripts/rvm;
-#rvm use 1.9.2@nodule --create
+echo "Loading RVM..."
+source $HOME/.rvm/scripts/rvm;
+rvm use --create 1.9.2@nodule
 
 bundle update
 
