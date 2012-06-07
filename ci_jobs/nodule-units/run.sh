@@ -15,7 +15,7 @@ cd $PROJECT_DIR
 echo "Loading RVM..."
 source $HOME/.rvm/scripts/rvm;
 echo "Using Ruby 1.9.2"
-rvm use 1.9.2-p290
+rvm use --create 1.9.2-p290@nodule
 
 echo "Starting bundle update"
 bundle update
