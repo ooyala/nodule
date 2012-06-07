@@ -1,7 +1,7 @@
 #!/bin/bash -l
 
 # Disallow errors
-#set -e
+set -e
 
 if [[ -z $WORKSPACE ]] ; then
   # Support execution from the shell
@@ -13,7 +13,7 @@ fi
 cd $PROJECT_DIR
 
 echo "Loading RVM..."
-source $HOME/.rvm/scripts/rvm;
+source $HOME/.rvm/scripts/rvm || echo "couldn't load RVM script"
 echo "Using Ruby 1.9.2"
 rvm use --create 1.9.2-p290@nodule
 
