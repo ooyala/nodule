@@ -1,8 +1,5 @@
 #!/bin/bash -l
 
-# Disallow errors
-set -e
-
 if [[ -z $WORKSPACE ]] ; then
   # Support execution from the shell
   export PROJECT_DIR=$(pwd);
@@ -19,6 +16,9 @@ rvm use --create 1.9.2-p290@nodule
 
 echo "Starting bundle update"
 bundle update
+
+# Disallow errors
+set -e
 
 echo START TASK: tests
 bundle exec rake test
