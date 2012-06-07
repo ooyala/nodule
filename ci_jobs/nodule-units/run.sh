@@ -1,7 +1,7 @@
 #!/bin/bash -l
 
 # Disallow errors
-set -e
+#set -e
 
 if [[ -z $WORKSPACE ]] ; then
   # Support execution from the shell
