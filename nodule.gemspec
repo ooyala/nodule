@@ -23,6 +23,6 @@ Gem::Specification.new do |s|
   s.add_development_dependency "minitest"
   # s.add_runtime_dependency "rest-client"
   s.add_runtime_dependency "ffi-rzmq"
-  s.add_runtime_dependency "cassandra"
+  s.add_runtime_dependency "cassandra", "=0.12.2ooyala2"
   s.add_runtime_dependency "rainbow"
 end
